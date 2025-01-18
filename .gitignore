@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+
+# JavaScript
+node_modules/
+/build
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Virtual environment
+backend/.venv/
