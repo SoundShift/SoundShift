@@ -1,6 +1,13 @@
+'use client';
+
+import { useCallback } from 'react';
 import Image from "next/image";
 
 export default function Home() {
+  const handleSpotifyLogin = useCallback(() => {
+    window.location.href = 'http://localhost:8000/auth/spotify/login';
+  }, []);
+
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
@@ -48,6 +55,13 @@ export default function Home() {
             Read our docs
           </a>
         </div>
+
+        <button
+          onClick={handleSpotifyLogin}
+          className="bg-[#1DB954] hover:bg-[#1ed760] text-white font-bold py-4 px-6 rounded-full transition-colors"
+        >
+          Login with Spotify
+        </button>
       </main>
       <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
         <a
