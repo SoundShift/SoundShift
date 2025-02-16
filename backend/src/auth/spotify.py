@@ -21,7 +21,7 @@ REDIRECT_URI = "http://localhost:3000/callback"
 AUTH_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 
-# Add this debug print
+# Debug .env variables
 print(f"Client ID loaded: {CLIENT_ID is not None}")
 print(f"Client Secret loaded: {CLIENT_SECRET is not None}")
 

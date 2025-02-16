@@ -1,5 +1,10 @@
 # SoundShift
 
+## Requirements
+- Python >= 3.11
+- Spotify API Key
+- Pinecone API Key
+
 ### Spotify API Setup
 1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 2. Click "Create App"
@@ -16,6 +21,7 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate
 ```
+**Note:** On Windows use `venv\Scripts\activate`
 
 2. Install dependencies:
 ```
@@ -44,8 +50,15 @@ cd backend
 source venv/bin/activate
 uvicorn src.main:app --reload
 ```
+**Note:** On Windows use `venv\Scripts\activate`
+
 2. Open a frontend terminal
 ```
 cd frontend
 npm run dev
 ```
+
+### Troubleshooting
+- Make sure you're running commands from the correct directories (backend/frontend)
+- If you see a "Client ID loaded: False" message when running the backend, check that your `.env` file is in the correct location (/backend/.env). You might have to restart the backend terminal and recreate the `.env` file.
+- Ensure Python 3.11 or higher is installed: `python --version`
