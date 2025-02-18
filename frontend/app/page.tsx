@@ -6,9 +6,9 @@ import { FaSpotify } from "react-icons/fa";
 
 export default function Home() {
   {
-    /* const handleSpotifyLogin = useCallback(() => {
+      const handleSpotifyLogin = useCallback(() => {
     window.location.href = "http://localhost:8000/auth/spotify/login";
-  }, []); */
+  }, []); 
   }
 
   return (
