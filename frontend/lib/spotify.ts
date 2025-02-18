@@ -1,4 +1,5 @@
 import { TokenResponse } from '@/types/spotify';
+import Recommendations from '@/components/Recommendations';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 export class SpotifyClient {
@@ -76,7 +77,7 @@ export class SpotifyClient {
     return response.json();
   }
 
-  async getNowPlaying() {
+  async getNowPlaying(): Promise<any> {
     try {
       const response = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
         headers: {
@@ -96,6 +97,57 @@ export class SpotifyClient {
       return response.json();
     } catch (error) {
       console.error('Failed to fetch now playing:', error);
+      throw error;
+    }
+  }
+
+  async searchTrack(query: string) {
+    const response = await fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`,
+      {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to search track');
+    }
+
+    const data = await response.json();
+    return data.tracks.items[0];
+  }
+
+  async playTrack(uri: string): Promise<void> {
+    try {
+      const accessToken = localStorage.getItem('spotify_access_token');
+      if (!accessToken) throw new Error('No access token available');
+
+      const response = await fetch('https://api.spotify.com/v1/me/player/play', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          uris: [uri]
+        })
+      });
+
+      if (response.status === 404) {
+        throw new Error('Please open Spotify on any device first');
+      }
+
+      if (response.status === 401) {
+        await this.refreshAccessToken();
+        return this.playTrack(uri);
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error.message || 'Failed to play track');
+      }
+    } catch (error) {
       throw error;
     }
   }

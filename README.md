@@ -1,9 +1,9 @@
 # SoundShift
 
 ## Requirements
-- Python >= 3.11
-- Spotify API Key
-- Pinecone API Key
+- Python version >= 3.11
+- Spotify API Client ID and Client Secret
+- Gemini API Key
 
 ### Spotify API Setup
 1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
@@ -14,6 +14,11 @@
    - Redirect URI: http://localhost:3000/callback
 4. Add your Client ID and Client Secret to the backend `.env` file
 
+### Gemini API Setup
+1. Go to [Gemini API](https://console.cloud.google.com/gemini/apikey)
+2. Create an API key
+3. Add your API key to the backend `.env` file
+
 ### Backend Setup
 1. Create and activate virtual environment:
 ```
@@ -22,6 +27,8 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 **Note:** On Windows use `venv\Scripts\activate`
+
+- Make sure your Python interpreter is set to ./backend/venv/bin/python
 
 2. Install dependencies:
 ```
@@ -32,8 +39,7 @@ pip3 install -r requirements.txt
 ```
 SPOTIFY_CLIENT_ID=your_client_id
 SPOTIFY_CLIENT_SECRET=your_client_secret
-PINECONE_API_KEY=your_pinecone_key
-PINECONE_ENVIRONMENT=your_pinecone_env
+GEMINI_API_KEY=your_gemini_key
 ```
 
 ### Frontend Setup

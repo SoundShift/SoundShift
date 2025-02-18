@@ -41,9 +41,11 @@ async def login():
         "user-read-email",
         "user-read-playback-state",
         "user-read-currently-playing",
+        "user-read-recently-played",
         "user-top-read",
         "playlist-read-private",
-        "playlist-read-collaborative"
+        "playlist-read-collaborative",
+        "user-modify-playback-state"
     ])
     
     params = {
