@@ -4,6 +4,7 @@ const axios = require("axios");
 const crypto = require("crypto");
 
 admin.initializeApp();
+const db = admin.firestore();
 
 const encryptionKey = process.env.ENCRYPTION_KEY;
 const ivLength = 16;
@@ -41,26 +42,19 @@ exports.exchangeToken = functions.https.onCall(
       const clientId = process.env.SPOTIFY_CLIENT_ID;
       const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
-      if (!req.rawRequest || !req.rawRequest.headers) {
-        console.warn("Request headers are missing, defaulting redirect URI");
-      }
-
       const origin = req.rawRequest?.headers?.origin || "http://localhost:3000";
-      console.log("Detected request origin:", origin);
-
-      let redirectUri = "http://localhost:3000/callback"; // default
-      if (origin.includes("soundshift.vercel.app")) {
-        redirectUri = "https://soundshift.vercel.app/callback";
-      }
+      let redirectUri = origin.includes("soundshift.vercel.app")
+        ? "https://soundshift.vercel.app/callback"
+        : "http://localhost:3000/callback";
 
       if (!clientId || !clientSecret || !encryptionKey) {
-        console.error("Missing API credentials.");
         throw new functions.https.HttpsError(
           "internal",
           "Missing API credentials."
         );
       }
 
+      // Exchange Spotify Token
       let tokenResponse;
       try {
         tokenResponse = await axios.post(
@@ -74,12 +68,7 @@ exports.exchangeToken = functions.https.onCall(
           }),
           { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
         );
-        console.log("Received token response:", tokenResponse.data);
       } catch (error) {
-        console.error(
-          "Failed to exchange token with Spotify:",
-          error.response?.data || error
-        );
         throw new functions.https.HttpsError(
           "internal",
           "Spotify token exchange failed"
@@ -88,18 +77,13 @@ exports.exchangeToken = functions.https.onCall(
 
       const { access_token, refresh_token, expires_in } = tokenResponse.data;
 
+      // Get Spotify User ID
       let userResponse;
       try {
-        console.log("Fetching user profile from Spotify...");
         userResponse = await axios.get("https://api.spotify.com/v1/me", {
           headers: { Authorization: `Bearer ${access_token}` },
         });
-        console.log("Received user profile:", userResponse.data);
       } catch (error) {
-        console.error(
-          "Failed to fetch user profile:",
-          error.response?.data || error
-        );
         throw new functions.https.HttpsError(
           "internal",
           "Failed to fetch Spotify user profile"
@@ -108,65 +92,106 @@ exports.exchangeToken = functions.https.onCall(
 
       const spotifyUserId = userResponse.data.id;
 
-      let userRecord;
-      try {
-        userRecord = await admin.auth().getUser(spotifyUserId);
-        console.log("User exists:", userRecord.uid);
-      } catch (error) {
-        try {
-          userRecord = await admin.auth().createUser({
-            uid: spotifyUserId,
-            displayName: userResponse.data.display_name,
-            photoURL: userResponse.data.images?.[0]?.url,
-          });
-        } catch (createError) {
-          console.error("Failed to create new user:", createError);
-          throw new functions.https.HttpsError(
-            "internal",
-            "Failed to create Firebase user"
-          );
+      // Fetch user from Firestore
+      const userRef = admin.firestore().collection("users").doc(spotifyUserId);
+      const userDoc = await userRef.get();
+      let lastLikedSync = userDoc.exists
+        ? userDoc.data().lastLikedSync || 0
+        : 0;
+
+      // **Define syncLikedSongs inside exchangeToken**
+      async function syncLikedSongs() {
+        const now = Date.now();
+        const syncThreshold = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
+
+        if (now - lastLikedSync < syncThreshold) {
+          console.log("Liked songs were already synced recently. Skipping.");
+          return { message: "Liked songs already up to date" };
         }
+
+        console.log("Syncing all liked songs...");
+
+        // **Fetch all liked songs**
+        async function fetchLikedTracks() {
+          let likedTracksMap = {};
+          let nextUrl = "https://api.spotify.com/v1/me/tracks?limit=50";
+          let totalFetched = 0;
+
+          while (nextUrl && totalFetched < 500) {
+            const response = await axios.get(nextUrl, {
+              headers: { Authorization: `Bearer ${access_token}` },
+            });
+
+            response.data.items.forEach((item) => {
+              if (totalFetched < 500) {
+                likedTracksMap[item.track.id] = true;
+                totalFetched++;
+              }
+            });
+
+            nextUrl =
+              response.data.next && totalFetched < 500
+                ? response.data.next
+                : null;
+
+            console.log(`Fetched ${totalFetched} liked songs so far...`);
+          }
+
+          return likedTracksMap;
+        }
+
+        const likedTracks = await fetchLikedTracks();
+        console.log(
+          `Final total liked songs: ${Object.keys(likedTracks).length}`
+        );
+
+        // **Save to Firestore**
+        await userRef.set(
+          {
+            likedTracks: likedTracks, // Store as a map
+            lastLikedSync: now, // Update last sync timestamp
+          },
+          { merge: true }
+        );
+
+        console.log("Liked songs successfully synced.");
+        return { message: "Liked songs updated" };
       }
 
+      // **Run Liked Songs Sync**
+      await syncLikedSongs();
+
+      // Save tokens & mark for liked songs sync
       try {
-        await admin
-          .firestore()
-          .collection("users")
-          .doc(spotifyUserId)
-          .set(
-            {
-              access_token: encrypt(access_token),
-              refresh_token: encrypt(refresh_token),
-              expires_at: Date.now() + expires_in * 1000,
-              profile: userResponse.data,
-            },
-            { merge: true }
-          );
+        await userRef.set(
+          {
+            access_token: encrypt(access_token),
+            refresh_token: encrypt(refresh_token),
+            expires_at: Date.now() + expires_in * 1000,
+            profile: userResponse.data,
+          },
+          { merge: true }
+        );
       } catch (firestoreError) {
-        console.error("Failed to save user data to Firestore:", firestoreError);
         throw new functions.https.HttpsError(
           "internal",
           "Failed to save user data"
         );
       }
 
+      // Generate Firebase Token
       let firebaseToken;
       try {
-        console.log("Generating Firebase custom token...");
         firebaseToken = await admin.auth().createCustomToken(spotifyUserId);
-        console.log("Firebase token generated successfully");
       } catch (tokenError) {
-        console.error("Failed to generate Firebase custom token:", tokenError);
         throw new functions.https.HttpsError(
           "internal",
           "Failed to generate Firebase token"
         );
       }
 
-      console.log("Function exchangeToken completed successfully");
       return { firebaseToken };
     } catch (error) {
-      console.error("Token exchange failed:", error);
       throw new functions.https.HttpsError("internal", "Token exchange failed");
     }
   }
@@ -256,6 +281,164 @@ exports.decryptTokens = functions.https.onCall(
     } catch (error) {
       console.error("Decryption failed:", error);
       throw new functions.https.HttpsError("internal", "Decryption failed");
+    }
+  }
+);
+
+exports.getRecommendations = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (req) => {
+    console.log(req);
+
+    try {
+      if (!req.auth || !req.auth.uid) {
+        throw new functions.https.HttpsError(
+          "unauthenticated",
+          "User must be authenticated."
+        );
+      }
+
+      const userId = req.auth.uid;
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "User data not found."
+        );
+      }
+
+      const userData = userDoc.data();
+      if (!userData.access_token || !userData.refresh_token) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Spotify tokens not found."
+        );
+      }
+
+      let accessToken = decrypt(userData.access_token);
+      let refreshToken = decrypt(userData.refresh_token);
+      let expiresAt = userData.expires_at;
+
+      if (Date.now() >= expiresAt) {
+        try {
+          console.log(`Refreshing access token for user: ${userId}`);
+          const clientId = process.env.SPOTIFY_CLIENT_ID;
+          const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+          const refreshResponse = await axios.post(
+            "https://accounts.spotify.com/api/token",
+            new URLSearchParams({
+              grant_type: "refresh_token",
+              refresh_token: refreshToken,
+              client_id: clientId,
+              client_secret: clientSecret,
+            }),
+            { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+          );
+
+          accessToken = refreshResponse.data.access_token;
+          expiresAt = Date.now() + refreshResponse.data.expires_in * 1000;
+
+          await db
+            .collection("users")
+            .doc(userId)
+            .update({
+              access_token: encrypt(accessToken),
+              expires_at: expiresAt,
+            });
+
+          console.log(`Access token refreshed for user: ${userId}`);
+        } catch (error) {
+          console.error(
+            "Failed to refresh Spotify token:",
+            error.response?.data || error
+          );
+          throw new functions.https.HttpsError(
+            "internal",
+            "Failed to refresh token"
+          );
+        }
+      }
+
+      // fetch last 50 songs played
+      const recentTracksResponse = await axios.get(
+        "https://api.spotify.com/v1/me/player/recently-played?limit=50",
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const recentTracks = recentTracksResponse.data.items.map((item) => ({
+        name: item.track.name,
+        artist: item.track.artists.map((a) => a.name).join(", "),
+      }));
+
+      console.log("Last 50 recently played songs:", recentTracks);
+
+      const { genres, mood } = req.data;
+      console.log("User-selected genres:", genres);
+      console.log("User-selected mood:", mood);
+
+      // prompt
+      const aiPrompt = `
+        The user is currently feeling '${mood}'. 
+        They enjoy the following genres: ${genres.join(", ")}.
+        Here are the last 50 songs they listened to:
+        ${recentTracks
+          .map((track) => `- ${track.name} by ${track.artist}`)
+          .join("\n")}
+
+        Based on this data, recommend 20 fresh songs they would love.
+        The response format MUST be JSON as follows:
+        {
+          "recommendations": [
+            { "name": "Song Title 1", "artist": "Artist Name 1" },
+            { "name": "Song Title 2", "artist": "Artist Name 2" }
+          ]
+        }
+      `;
+
+      console.log("Generated AI Prompt:\n", aiPrompt);
+
+      // gemini api
+      const geminiResponse = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          contents: [{ parts: [{ text: aiPrompt }] }],
+        },
+        { headers: { "Content-Type": "application/json" } }
+      );
+
+      console.log("Gemini API Response:", geminiResponse.data);
+
+      // response
+      let recommendations = [];
+      try {
+        const aiText =
+          geminiResponse.data.candidates[0]?.content?.parts[0]?.text || "";
+        const jsonMatch = aiText.match(/\{.*\}/s);
+
+        if (jsonMatch) {
+          const parsedData = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsedData.recommendations)) {
+            recommendations = parsedData.recommendations;
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing AI response:", error);
+        throw new functions.https.HttpsError(
+          "internal",
+          "Failed to parse AI recommendations."
+        );
+      }
+
+      console.log("Final AI Recommendations:", recommendations);
+
+      return { tracks: recommendations };
+    } catch (error) {
+      console.error("Error fetching recommendations:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Error fetching recommendations"
+      );
     }
   }
 );

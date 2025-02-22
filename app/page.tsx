@@ -4,7 +4,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import Link from "next/link";
 
 export default function Home() {
-  const { authenticated, spotifyToken, logout } = useAuth();
+  const { authenticated, spotifyToken, logout, likedTracks } = useAuth();
 
   const handleLogin = () => {
     const clientId = "d94d200c0e3f4fc0b83ed70f1e29958d";
@@ -35,7 +35,7 @@ export default function Home() {
           Logout
         </button>
         <button
-          onClick={() => console.log(authenticated, spotifyToken)}
+          onClick={() => console.log(authenticated, spotifyToken, likedTracks)}
           className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded ml-4"
         >
           Click me
