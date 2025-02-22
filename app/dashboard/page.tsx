@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/providers/AuthProvider";
+import Popup from "@/components/Popup";
 
 interface NowPlaying {
   isPlaying: boolean;
@@ -22,7 +23,18 @@ export default function Dashboard() {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [volume, setVolume] = useState(50);
   const [isLiked, setIsLiked] = useState<boolean | null>(null);
+  const [showPopup, setShowPopup] = useState<boolean>(false);
   const { authenticated, authLoaded, spotifyToken, logout } = useAuth();
+
+  useEffect(() => {
+    if (authLoaded && authenticated) {
+      setShowPopup(true);
+    }
+  }, [authLoaded, authenticated]);
+  
+  const handleClosePopup = () => {
+    setShowPopup(false);
+  };
 
   const handleLogout = () => {
     if (player) {
@@ -87,7 +99,7 @@ export default function Dashboard() {
               Authorization: `Bearer ${spotifyToken}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ device_ids: [device_id], play: true }),
+            body: JSON.stringify({ device_ids: [device_id], play: false }),
           });
         }
       );
@@ -211,75 +223,78 @@ export default function Dashboard() {
           )}
         </div>
 
-        {nowPlaying ? (
-          <div className="flex flex-col items-center max-w-md mx-auto">
-            {nowPlaying.albumArt && (
-              <div className="relative w-64 h-64 mb-8 shadow-2xl">
-                <Image
-                  src={nowPlaying.albumArt}
-                  alt="Album artwork"
-                  fill
-                  className="rounded-lg object-cover"
+        {/* {showPopup && <Popup message="Enjoy seamless music streaming with Spotify!" onClose={handleClosePopup} />} */}
+        {showPopup && <Popup onClose={handleClosePopup} />}
+        
+        {!showPopup && (
+          nowPlaying ? (
+            <div className="flex flex-col items-center max-w-md mx-auto">
+              {nowPlaying.albumArt && (
+                <div className="relative w-64 h-64 mb-8 shadow-2xl">
+                  <Image
+                    src={nowPlaying.albumArt}
+                    alt="Album artwork"
+                    fill
+                    className="rounded-lg object-cover"
+                  />
+                </div>
+              )}
+              <h2 className="text-2xl font-bold mb-2">{nowPlaying.trackName}</h2>
+              <p className="text-lg text-gray-300 mb-1">
+                {nowPlaying.artistName}
+              </p>
+              <p className="text-sm text-gray-400">{nowPlaying.albumName}</p>
+
+              <div className="flex mt-4 space-x-4">
+                <button
+                  onClick={handlePrevious}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-800 rounded-full"
+                >
+                  ⏮ Previous
+                </button>
+                <button
+                  onClick={handlePlayPause}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-800 rounded-full"
+                >
+                  {nowPlaying.isPlaying ? "⏸ Pause" : "▶ Play"}
+                </button>
+                <button
+                  onClick={handleNext}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-800 rounded-full"
+                >
+                  ⏭ Next
+                </button>
+              </div>
+
+              <div className="flex mt-4 space-x-4">
+                <button
+                  onClick={toggleLike}
+                  className={`px-4 py-2 rounded-full transition ${
+                    isLiked
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-gray-700 hover:bg-gray-800"
+                  }`}
+                >
+                  {isLiked ? "❤️ Liked" : "🤍 Like"}
+                </button>
+              </div>
+
+              <div className="flex items-center mt-4 space-x-2">
+                <span className="text-gray-400">🔊</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={volume}
+                  onChange={handleVolumeChange}
+                  className="w-40"
                 />
               </div>
-            )}
-            <h2 className="text-2xl font-bold mb-2">{nowPlaying.trackName}</h2>
-            <p className="text-lg text-gray-300 mb-1">
-              {nowPlaying.artistName}
-            </p>
-            <p className="text-sm text-gray-400">{nowPlaying.albumName}</p>
-
-            <div className="flex mt-4 space-x-4">
-              <button
-                onClick={handlePrevious}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-800 rounded-full"
-              >
-                ⏮ Previous
-              </button>
-              <button
-                onClick={handlePlayPause}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-800 rounded-full"
-              >
-                {nowPlaying.isPlaying ? "⏸ Pause" : "▶ Play"}
-              </button>
-              <button
-                onClick={handleNext}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-800 rounded-full"
-              >
-                ⏭ Next
-              </button>
             </div>
-
-            <div className="flex mt-4 space-x-4">
-              <button
-                onClick={toggleLike}
-                className={`px-4 py-2 rounded-full transition ${
-                  isLiked
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-gray-700 hover:bg-gray-800"
-                }`}
-              >
-                {isLiked ? "❤️ Liked" : "🤍 Like"}
-              </button>
-            </div>
-
-            <div className="flex items-center mt-4 space-x-2">
-              <span className="text-gray-400">🔊</span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={volume}
-                onChange={handleVolumeChange}
-                className="w-40"
-              />
-            </div>
-          </div>
-        ) : (
-          <p className="text-center text-gray-400">
-            No song currently playing.
-          </p>
-        )}
+            ) : (
+              <p className="text-center text-gray-400">No song currently playing.</p>
+            )
+          )}
       </div>
     </div>
   );
