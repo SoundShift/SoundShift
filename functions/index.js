@@ -40,62 +40,130 @@ exports.exchangeToken = functions.https.onCall(
       const { code } = req.data;
       const clientId = process.env.SPOTIFY_CLIENT_ID;
       const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-      const redirectUri = "http://localhost:3000/callback";
+
+      if (!req.rawRequest || !req.rawRequest.headers) {
+        console.warn("Request headers are missing, defaulting redirect URI");
+      }
+
+      const origin = req.rawRequest?.headers?.origin || "http://localhost:3000";
+      console.log("Detected request origin:", origin);
+
+      let redirectUri = "http://localhost:3000/callback"; // default
+      if (origin.includes("soundshift.vercel.app")) {
+        redirectUri = "https://soundshift.vercel.app/callback";
+      }
 
       if (!clientId || !clientSecret || !encryptionKey) {
+        console.error("Missing API credentials.");
         throw new functions.https.HttpsError(
           "internal",
           "Missing API credentials."
         );
       }
 
-      const tokenResponse = await axios.post(
-        "https://accounts.spotify.com/api/token",
-        new URLSearchParams({
-          grant_type: "authorization_code",
-          code,
-          redirect_uri: redirectUri,
-          client_id: clientId,
-          client_secret: clientSecret,
-        }),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-      );
+      let tokenResponse;
+      try {
+        tokenResponse = await axios.post(
+          "https://accounts.spotify.com/api/token",
+          new URLSearchParams({
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: redirectUri,
+            client_id: clientId,
+            client_secret: clientSecret,
+          }),
+          { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        );
+        console.log("Received token response:", tokenResponse.data);
+      } catch (error) {
+        console.error(
+          "Failed to exchange token with Spotify:",
+          error.response?.data || error
+        );
+        throw new functions.https.HttpsError(
+          "internal",
+          "Spotify token exchange failed"
+        );
+      }
 
       const { access_token, refresh_token, expires_in } = tokenResponse.data;
 
-      const userResponse = await axios.get("https://api.spotify.com/v1/me", {
-        headers: { Authorization: `Bearer ${access_token}` },
-      });
+      let userResponse;
+      try {
+        console.log("Fetching user profile from Spotify...");
+        userResponse = await axios.get("https://api.spotify.com/v1/me", {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        console.log("Received user profile:", userResponse.data);
+      } catch (error) {
+        console.error(
+          "Failed to fetch user profile:",
+          error.response?.data || error
+        );
+        throw new functions.https.HttpsError(
+          "internal",
+          "Failed to fetch Spotify user profile"
+        );
+      }
 
       const spotifyUserId = userResponse.data.id;
 
       let userRecord;
       try {
         userRecord = await admin.auth().getUser(spotifyUserId);
+        console.log("User exists:", userRecord.uid);
       } catch (error) {
-        userRecord = await admin.auth().createUser({
-          uid: spotifyUserId,
-          displayName: userResponse.data.display_name,
-          photoURL: userResponse.data.images?.[0]?.url,
-        });
+        try {
+          userRecord = await admin.auth().createUser({
+            uid: spotifyUserId,
+            displayName: userResponse.data.display_name,
+            photoURL: userResponse.data.images?.[0]?.url,
+          });
+        } catch (createError) {
+          console.error("Failed to create new user:", createError);
+          throw new functions.https.HttpsError(
+            "internal",
+            "Failed to create Firebase user"
+          );
+        }
       }
 
-      await admin
-        .firestore()
-        .collection("users")
-        .doc(spotifyUserId)
-        .set(
-          {
-            access_token: encrypt(access_token),
-            refresh_token: encrypt(refresh_token),
-            expires_at: Date.now() + expires_in * 1000,
-            profile: userResponse.data,
-          },
-          { merge: true }
+      try {
+        await admin
+          .firestore()
+          .collection("users")
+          .doc(spotifyUserId)
+          .set(
+            {
+              access_token: encrypt(access_token),
+              refresh_token: encrypt(refresh_token),
+              expires_at: Date.now() + expires_in * 1000,
+              profile: userResponse.data,
+            },
+            { merge: true }
+          );
+      } catch (firestoreError) {
+        console.error("Failed to save user data to Firestore:", firestoreError);
+        throw new functions.https.HttpsError(
+          "internal",
+          "Failed to save user data"
         );
+      }
 
-      const firebaseToken = await admin.auth().createCustomToken(spotifyUserId);
+      let firebaseToken;
+      try {
+        console.log("Generating Firebase custom token...");
+        firebaseToken = await admin.auth().createCustomToken(spotifyUserId);
+        console.log("Firebase token generated successfully");
+      } catch (tokenError) {
+        console.error("Failed to generate Firebase custom token:", tokenError);
+        throw new functions.https.HttpsError(
+          "internal",
+          "Failed to generate Firebase token"
+        );
+      }
 
+      console.log("Function exchangeToken completed successfully");
       return { firebaseToken };
     } catch (error) {
       console.error("Token exchange failed:", error);
