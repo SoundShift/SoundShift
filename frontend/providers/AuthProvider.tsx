@@ -1,13 +1,17 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import Cookies from "js-cookie";
-import axios from "axios";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { auth, functions } from "@/firebaseConfig/firebase";
+import { httpsCallable } from "firebase/functions";
 
 interface AuthContextType {
   authenticated: boolean;
   loading: boolean;
-  login: () => void;
+  authLoaded: boolean;
+  user: User | null;
+  spotifyToken: string | null;
+  refreshToken: string | null;
   logout: () => void;
 }
 
@@ -16,38 +20,59 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [authenticated, setAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authLoaded, setAuthLoaded] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = Cookies.get("session_token");
-      if (token) {
-        try {
-          await axios.get("http://localhost:8000/auth/verify", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          setAuthenticated(true);
-        } catch (error) {
-          setAuthenticated(false);
-        }
-      }
+    return onAuthStateChanged(auth, async (user) => {
+      setUser(user);
       setLoading(false);
-    };
-    checkAuth();
+      setAuthLoaded(true);
+
+      if (user) {
+        try {
+          const decryptTokens = httpsCallable<
+            { userId: string },
+            { access_token: string; refresh_token: string }
+          >(functions, "decryptTokens");
+
+          const response = await decryptTokens({ userId: user.uid });
+
+          if (response.data?.access_token && response.data?.refresh_token) {
+            setSpotifyToken(response.data.access_token);
+            setRefreshToken(response.data.refresh_token);
+          }
+        } catch (error) {
+          console.error("Error fetching Spotify tokens:", error);
+        }
+      } else {
+        setSpotifyToken(null);
+        setRefreshToken(null);
+      }
+    });
   }, []);
 
-  const login = () => {
-    window.location.href = "http://localhost:8000/auth/spotify/login";
-  };
-
-  const logout = () => {
-    Cookies.remove("session_token");
-    setAuthenticated(false);
+  const logout = async () => {
+    await signOut(auth);
+    setSpotifyToken(null);
+    setRefreshToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ authenticated, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        authenticated: !!user,
+        loading,
+        authLoaded,
+        user,
+        spotifyToken,
+        refreshToken,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
