@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { auth, functions } from "@/firebaseConfig/firebase";
+import { auth, db, functions } from "@/firebaseConfig/firebase";
 import { httpsCallable } from "firebase/functions";
+import { doc, getDoc } from "firebase/firestore";
 
 interface AuthContextType {
   authenticated: boolean;
@@ -12,6 +13,7 @@ interface AuthContextType {
   user: User | null;
   spotifyToken: string | null;
   refreshToken: string | null;
+  likedTracks: Record<string, boolean> | null; // Map of liked track IDs
   logout: () => void;
 }
 
@@ -23,6 +25,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [likedTracks, setLikedTracks] = useState<Record<
+    string,
+    boolean
+  > | null>(null);
   const [loading, setLoading] = useState(true);
   const [authLoaded, setAuthLoaded] = useState(false);
 
@@ -34,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       if (user) {
         try {
+          // **Step 1: Decrypt Spotify Tokens**
           const decryptTokens = httpsCallable<
             { userId: string },
             { access_token: string; refresh_token: string }
@@ -45,12 +52,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             setSpotifyToken(response.data.access_token);
             setRefreshToken(response.data.refresh_token);
           }
+
+          // **Step 2: Fetch Liked Tracks from Firestore**
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            setLikedTracks(userData.likedTracks || {});
+          } else {
+            console.log("User document not found, setting empty likedTracks.");
+            setLikedTracks({});
+          }
         } catch (error) {
-          console.error("Error fetching Spotify tokens:", error);
+          console.error("Error fetching user data:", error);
         }
       } else {
         setSpotifyToken(null);
         setRefreshToken(null);
+        setLikedTracks(null);
       }
     });
   }, []);
@@ -59,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     await signOut(auth);
     setSpotifyToken(null);
     setRefreshToken(null);
+    setLikedTracks(null);
   };
 
   return (
@@ -70,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         user,
         spotifyToken,
         refreshToken,
+        likedTracks,
         logout,
       }}
     >

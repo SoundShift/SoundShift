@@ -4,54 +4,36 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/providers/AuthProvider";
-import Popup from "@/components/Popup";
-
-interface NowPlaying {
-  isPlaying: boolean;
-  albumArt?: string;
-  trackName?: string;
-  artistName?: string;
-  albumName?: string;
-  uri?: string;
-  id?: string;
-}
+import { useSpotify } from "@/providers/SpotifyProvider";
+import Popup from "@/app/dashboard/components/Popup";
 
 export default function Dashboard() {
   const router = useRouter();
-  const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
-  const [player, setPlayer] = useState<any>(null);
-  const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [volume, setVolume] = useState(50);
-  const [isLiked, setIsLiked] = useState<boolean | null>(null);
+  const { authenticated, authLoaded, logout } = useAuth();
+  const {
+    nowPlaying,
+    isLiked,
+    volume,
+    handlePlayPause,
+    handleNext,
+    handlePrevious,
+    handleVolumeChange,
+    toggleLike,
+  } = useSpotify();
+
   const [showPopup, setShowPopup] = useState<boolean>(false);
-  const { authenticated, authLoaded, spotifyToken, logout } = useAuth();
 
   useEffect(() => {
     if (authLoaded && authenticated) {
       setShowPopup(true);
     }
   }, [authLoaded, authenticated]);
-  
+
   const handleClosePopup = () => {
     setShowPopup(false);
   };
 
   const handleLogout = () => {
-    if (player) {
-      player.disconnect();
-      setPlayer(null);
-    }
-
-    const script = document.querySelector(
-      "script[src='https://sdk.scdn.co/spotify-player.js']"
-    );
-    if (script) {
-      script.remove();
-    }
-
-    setNowPlaying(null);
-    setDeviceId(null);
-
     logout();
   };
 
@@ -60,153 +42,6 @@ export default function Dashboard() {
       router.push("/");
     }
   }, [authLoaded, authenticated, router]);
-
-  useEffect(() => {
-    if (!authenticated || !spotifyToken) return;
-
-    // maybe add loading state until player is fully loaded
-
-    const loadSpotifySDK = () => {
-      return new Promise<void>((resolve) => {
-        if (window.Spotify) {
-          resolve();
-        } else {
-          window.onSpotifyWebPlaybackSDKReady = () => resolve();
-
-          const script = document.createElement("script");
-          script.src = "https://sdk.scdn.co/spotify-player.js";
-          script.async = true;
-          document.body.appendChild(script);
-        }
-      });
-    };
-
-    loadSpotifySDK().then(() => {
-      const newPlayer = new window.Spotify.Player({
-        name: "My Web Player",
-        getOAuthToken: (cb: any) => cb(spotifyToken),
-        volume: volume / 100,
-      });
-
-      newPlayer.addListener(
-        "ready",
-        async ({ device_id }: { device_id: string }) => {
-          setDeviceId(device_id);
-
-          await fetch("https://api.spotify.com/v1/me/player", {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${spotifyToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ device_ids: [device_id], play: false }),
-          });
-        }
-      );
-
-      newPlayer.addListener(
-        "not_ready",
-        ({ device_id }: { device_id: string }) => {
-          setDeviceId(null);
-        }
-      );
-
-      newPlayer.addListener("player_state_changed", async (state: any) => {
-        if (!state) return;
-
-        console.log("Player State Changed:", state);
-
-        const currentTrack = state.track_window.current_track;
-        setNowPlaying({
-          isPlaying: !state.paused,
-          albumArt: currentTrack.album.images[0]?.url,
-          trackName: currentTrack.name,
-          artistName: currentTrack.artists[0]?.name,
-          albumName: currentTrack.album.name,
-          uri: currentTrack.uri,
-          id: currentTrack.id,
-        });
-
-        // check if liked
-        await checkIfLiked(currentTrack.id);
-      });
-
-      newPlayer.connect();
-      setPlayer(newPlayer);
-    });
-
-    return () => {
-      if (player) player.disconnect();
-    };
-  }, [authenticated, spotifyToken]);
-
-  const handlePlayPause = async () => {
-    if (!player) return;
-    const state = await player.getCurrentState();
-    if (state) {
-      state.paused ? await player.resume() : await player.pause();
-    }
-  };
-
-  const handleNext = async () => {
-    if (!player) return;
-    console.log("User skipped song");
-    await player.nextTrack();
-  };
-
-  const handlePrevious = async () => {
-    if (!player) return;
-    console.log("User went back to previous song");
-    await player.previousTrack();
-  };
-
-  const handleVolumeChange = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const newVolume = Number(event.target.value);
-    setVolume(newVolume);
-    if (player) {
-      await player.setVolume(newVolume / 100);
-    }
-  };
-
-  const checkIfLiked = async (trackId: string) => {
-    const response = await fetch(
-      `https://api.spotify.com/v1/me/tracks/contains?ids=${trackId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${spotifyToken}`,
-        },
-      }
-    );
-
-    const data = await response.json();
-    setIsLiked(data[0]);
-  };
-
-  const toggleLike = async () => {
-    if (!nowPlaying?.id) return;
-
-    if (isLiked) {
-      await fetch(`https://api.spotify.com/v1/me/tracks?ids=${nowPlaying.id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${spotifyToken}`,
-        },
-      });
-      console.log("Song disliked:", nowPlaying.trackName);
-    } else {
-      await fetch(`https://api.spotify.com/v1/me/tracks?ids=${nowPlaying.id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${spotifyToken}`,
-        },
-      });
-      console.log("Song liked:", nowPlaying.trackName);
-    }
-
-    setIsLiked(!isLiked);
-  };
 
   return (
     <div className="min-h-screen bg-neutral-900 text-white p-8">
@@ -223,11 +58,10 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* {showPopup && <Popup message="Enjoy seamless music streaming with Spotify!" onClose={handleClosePopup} />} */}
         {showPopup && <Popup onClose={handleClosePopup} />}
-        
-        {!showPopup && (
-          nowPlaying ? (
+
+        {!showPopup &&
+          (nowPlaying ? (
             <div className="flex flex-col items-center max-w-md mx-auto">
               {nowPlaying.albumArt && (
                 <div className="relative w-64 h-64 mb-8 shadow-2xl">
@@ -239,7 +73,9 @@ export default function Dashboard() {
                   />
                 </div>
               )}
-              <h2 className="text-2xl font-bold mb-2">{nowPlaying.trackName}</h2>
+              <h2 className="text-2xl font-bold mb-2">
+                {nowPlaying.trackName}
+              </h2>
               <p className="text-lg text-gray-300 mb-1">
                 {nowPlaying.artistName}
               </p>
@@ -286,15 +122,16 @@ export default function Dashboard() {
                   min="0"
                   max="100"
                   value={volume}
-                  onChange={handleVolumeChange}
+                  onChange={(e) => handleVolumeChange(Number(e.target.value))}
                   className="w-40"
                 />
               </div>
             </div>
-            ) : (
-              <p className="text-center text-gray-400">No song currently playing.</p>
-            )
-          )}
+          ) : (
+            <p className="text-center text-gray-400">
+              No song currently playing.
+            </p>
+          ))}
       </div>
     </div>
   );
