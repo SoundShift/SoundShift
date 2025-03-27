@@ -3,14 +3,18 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 
-interface NowPlaying {
+export interface NowPlaying {
+  item: {
+    id: string;
+    name: string;
+    artists: { name: string }[];
+    album: {
+      name: string;
+      images: { url: string }[];
+    };
+    uri: string;
+  } | null;
   isPlaying: boolean;
-  albumArt?: string;
-  trackName?: string;
-  artistName?: string;
-  albumName?: string;
-  uri?: string;
-  id?: string;
 }
 
 interface SpotifyContextType {
@@ -24,191 +28,297 @@ interface SpotifyContextType {
   handlePrevious: () => Promise<void>;
   handleVolumeChange: (volume: number) => Promise<void>;
   toggleLike: () => Promise<void>;
-  addToQueue: (uri: string) => Promise<void>;
+  addToQueue: (trackId: string) => Promise<void>;
 }
 
 const SpotifyContext = createContext<SpotifyContextType | undefined>(undefined);
 
-export function SpotifyProvider({ children }: { children: React.ReactNode }) {
-  const { authenticated, spotifyToken } = useAuth();
+export const useSpotify = () => {
+  const context = useContext(SpotifyContext);
+  if (context === undefined) {
+    throw new Error("useSpotify must be used within a SpotifyProvider");
+  }
+  return context;
+};
+
+export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { spotifyToken, likedTracks } = useAuth();
   const [player, setPlayer] = useState<Spotify.Player | null>(null);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
+  const [volume, setVolume] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      return Number(localStorage.getItem("spotifyVolume")) || 25;
+    }
+    return 25;
+  });
   const [isLiked, setIsLiked] = useState<boolean | null>(null);
-  const [volume, setVolume] = useState<number>(
-    () => Number(localStorage.getItem("spotifyVolume")) || 25
-  );
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (!authenticated || !spotifyToken) return;
+    if (!spotifyToken) return;
 
-    const loadSpotifySDK = () => {
-      return new Promise<void>((resolve) => {
-        if (window.Spotify) {
-          resolve();
-        } else {
-          window.onSpotifyWebPlaybackSDKReady = () => resolve();
+    const script = document.createElement("script");
+    script.src = "https://sdk.scdn.co/spotify-player.js";
+    script.async = true;
+    document.body.appendChild(script);
 
-          const script = document.createElement("script");
-          script.src = "https://sdk.scdn.co/spotify-player.js";
-          script.async = true;
-          document.body.appendChild(script);
-        }
-      });
-    };
-
-    loadSpotifySDK().then(() => {
-      const newPlayer = new window.Spotify.Player({
-        name: "My Web Player",
-        getOAuthToken: (cb: any) => cb(spotifyToken),
-        volume: volume / 100,
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      const spotifyPlayer = new Spotify.Player({
+        name: "SoundShift Web Player",
+        getOAuthToken: (cb) => {
+          cb(spotifyToken);
+        },
+        volume: 0.5,
       });
 
-      newPlayer.addListener(
-        "ready",
-        async ({ device_id }: { device_id: string }) => {
-          setDeviceId(device_id);
+      spotifyPlayer.addListener("ready", ({ device_id }) => {
+        console.log("Ready with Device ID", device_id);
+        setDeviceId(device_id);
+      });
 
-          await fetch("https://api.spotify.com/v1/me/player", {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${spotifyToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ device_ids: [device_id], play: false }),
-          });
-        }
-      );
+      spotifyPlayer.addListener("not_ready", ({ device_id }) => {
+        console.log("Device ID has gone offline", device_id);
+      });
 
-      newPlayer.addListener(
-        "not_ready",
-        ({ device_id }: { device_id: string }) => {
-          setDeviceId(null);
-        }
-      );
-
-      newPlayer.addListener("player_state_changed", async (state: any) => {
+      spotifyPlayer.addListener("player_state_changed", (state) => {
         if (!state) return;
 
         const currentTrack = state.track_window.current_track;
         setNowPlaying({
+          item: {
+            id: currentTrack.id,
+            name: currentTrack.name,
+            artists: currentTrack.artists,
+            album: {
+              name: currentTrack.album.name,
+              images: currentTrack.album.images,
+            },
+            uri: currentTrack.uri,
+          },
           isPlaying: !state.paused,
-          albumArt: currentTrack.album.images[0]?.url,
-          trackName: currentTrack.name,
-          artistName: currentTrack.artists[0]?.name,
-          albumName: currentTrack.album.name,
-          uri: currentTrack.uri,
-          id: currentTrack.id,
         });
 
-        await checkIfLiked(currentTrack.id);
+        setVolume(state.device.volume_percent);
+        
+        if (likedTracks && currentTrack.id) {
+          setIsLiked(!!likedTracks[currentTrack.id]);
+        }
       });
 
-      newPlayer.connect();
-      setPlayer(newPlayer);
-    });
+      spotifyPlayer.connect();
+      setPlayer(spotifyPlayer);
+    };
 
     return () => {
-      if (player) player.disconnect();
+      if (player) {
+        player.disconnect();
+      }
     };
-  }, [authenticated, spotifyToken]);
+  }, [spotifyToken]);
+
+  useEffect(() => {
+    if (!spotifyToken) return;
+
+    const fetchPlaybackState = async () => {
+      try {
+        const response = await fetch('https://api.spotify.com/v1/me/player', {
+          headers: {
+            'Authorization': `Bearer ${spotifyToken}`
+          }
+        });
+        
+        if (response.status === 204) {
+          setNowPlaying(null);
+          return;
+        }
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data && data.item) {
+          setNowPlaying({
+            item: {
+              id: data.item.id,
+              name: data.item.name,
+              artists: data.item.artists,
+              album: {
+                name: data.item.album.name,
+                images: data.item.album.images
+              },
+              uri: data.item.uri
+            },
+            isPlaying: data.is_playing
+          });
+          
+          if (data.item.id) {
+            checkIfTrackIsLiked(data.item.id);
+          }
+        } else {
+          setNowPlaying(null);
+        }
+      } catch (error) {
+        console.error('Error fetching playback state:', error);
+      }
+    };
+    
+    const checkIfTrackIsLiked = async (trackId) => {
+      try {
+        const response = await fetch(`https://api.spotify.com/v1/me/tracks/contains?ids=${trackId}`, {
+          headers: {
+            'Authorization': `Bearer ${spotifyToken}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setIsLiked(data[0] || false);
+      } catch (error) {
+        console.error('Error checking if track is liked:', error);
+      }
+    };
+
+    fetchPlaybackState();
+    
+    const interval = setInterval(fetchPlaybackState, 3000);
+    setPollingInterval(interval);
+    
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [spotifyToken]);
 
   const handlePlayPause = async () => {
-    if (!player) return;
-    const state = await player.getCurrentState();
-    if (state) {
-      state.paused ? await player.resume() : await player.pause();
+    if (!spotifyToken) return;
+
+    try {
+      const endpoint = nowPlaying?.isPlaying ? 'pause' : 'play';
+      await fetch(`https://api.spotify.com/v1/me/player/${endpoint}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${spotifyToken}`
+        }
+      });
+      
+      if (nowPlaying) {
+        setNowPlaying({
+          ...nowPlaying,
+          isPlaying: !nowPlaying.isPlaying
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling play/pause:', error);
     }
   };
 
   const handleNext = async () => {
-    if (!player) return;
-    await player.nextTrack();
+    if (!spotifyToken) return;
+
+    try {
+      await fetch('https://api.spotify.com/v1/me/player/next', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${spotifyToken}`
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error skipping to next track:', error);
+    }
   };
 
   const handlePrevious = async () => {
-    if (!player) return;
-    await player.previousTrack();
+    if (!spotifyToken) return;
+
+    try {
+      await fetch('https://api.spotify.com/v1/me/player/previous', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${spotifyToken}`
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error going to previous track:', error);
+    }
   };
 
   const handleVolumeChange = async (newVolume: number) => {
-    setVolume(newVolume);
-    localStorage.setItem("spotifyVolume", String(newVolume));
-    if (player) {
-      await player.setVolume(newVolume / 100);
-    }
-  };
+    if (!spotifyToken) return;
 
-  const checkIfLiked = async (trackId: string) => {
-    const response = await fetch(
-      `https://api.spotify.com/v1/me/tracks/contains?ids=${trackId}`,
-      {
+    try {
+      await fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${newVolume}`, {
+        method: 'PUT',
         headers: {
-          Authorization: `Bearer ${spotifyToken}`,
-        },
-      }
-    );
-
-    const data = await response.json();
-    setIsLiked(data[0]);
+          'Authorization': `Bearer ${spotifyToken}`
+        }
+      });
+      
+      setVolume(newVolume);
+    } catch (error) {
+      console.error('Error changing volume:', error);
+    }
   };
 
   const toggleLike = async () => {
-    if (!nowPlaying?.id) return;
+    if (!spotifyToken || !nowPlaying?.item?.id) return;
 
-    if (isLiked) {
-      await fetch(`https://api.spotify.com/v1/me/tracks?ids=${nowPlaying.id}`, {
-        method: "DELETE",
+    try {
+      const trackId = nowPlaying.item.id;
+      const method = isLiked ? 'DELETE' : 'PUT';
+      
+      await fetch(`https://api.spotify.com/v1/me/tracks?ids=${trackId}`, {
+        method,
         headers: {
-          Authorization: `Bearer ${spotifyToken}`,
-        },
+          'Authorization': `Bearer ${spotifyToken}`
+        }
       });
-    } else {
-      await fetch(`https://api.spotify.com/v1/me/tracks?ids=${nowPlaying.id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${spotifyToken}`,
-        },
-      });
+      
+      setIsLiked(!isLiked);
+    } catch (error) {
+      console.error('Error toggling like status:', error);
     }
-
-    setIsLiked(!isLiked);
   };
 
   const addToQueue = async (trackId: string) => {
-    if (!spotifyToken) {
-      console.error("Spotify token is missing");
-      return;
-    }
-
+    if (!spotifyToken) return;
+    
     try {
       // Ensure the user has an active device
-      const deviceResponse = await fetch(
-        "https://api.spotify.com/v1/me/player",
-        {
-          headers: { Authorization: `Bearer ${spotifyToken}` },
+      const deviceResponse = await fetch("https://api.spotify.com/v1/me/player", {
+        headers: {
+          Authorization: `Bearer ${spotifyToken}`
         }
-      );
+      });
+      
       const deviceData = await deviceResponse.json();
-
+      
       if (!deviceData.device || !deviceData.device.id) {
-        console.error(
-          "No active Spotify device found. Please play something on Spotify first."
-        );
+        console.error("No active Spotify device found. Please play something on Spotify first.");
         return;
       }
-
+      
       // Properly format track URI
       const trackUri = `spotify:track:${trackId}`;
-      const queueUrl = `https://api.spotify.com/v1/me/player/queue?uri=${encodeURIComponent(
-        trackUri
-      )}`;
-
+      const queueUrl = `https://api.spotify.com/v1/me/player/queue?uri=${encodeURIComponent(trackUri)}`;
+      
       const response = await fetch(queueUrl, {
         method: "POST",
-        headers: { Authorization: `Bearer ${spotifyToken}` },
+        headers: {
+          Authorization: `Bearer ${spotifyToken}`,
+        }
       });
-
+      
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Failed to add to queue:", errorData);
@@ -216,9 +326,15 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
         console.log(`Successfully added ${trackId} to queue.`);
       }
     } catch (error) {
-      console.error("Error adding track to queue:", error);
+      console.error('Error adding track to queue:', error);
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("spotifyVolume", volume.toString());
+    }
+  }, [volume]);
 
   return (
     <SpotifyContext.Provider
@@ -239,12 +355,4 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
       {children}
     </SpotifyContext.Provider>
   );
-}
-
-export const useSpotify = () => {
-  const context = useContext(SpotifyContext);
-  if (!context) {
-    throw new Error("useSpotify must be used within a SpotifyProvider");
-  }
-  return context;
 };
