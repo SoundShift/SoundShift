@@ -1,42 +1,69 @@
-Guide
+# 🎵 SoundShift
 
-1. Install Dependencies
+SoundShift is an intelligent music recommendation platform designed to enhance user
+experience by leveraging user feedback for personalized music suggestions. Our system
+integrates real time preference learning with temporal weighting to adapt recommendations
+based on recent user interactions while also utilizing a direct feedback interface.
 
----
+## 🚀 Features
 
-Before running the project, install all required dependencies:
+- 🎵 Music recommendation
+- ▶️ Stream music in-app
+- 📁 Dynamic routing with Next.js
+- 🎨 Responsive design with Tailwind CSS
+- ☁️ Firebase integration (Auth, Firestore, and Hosting)
 
-    npm install
+## 🛠 Tech Stack
 
-Additionally, navigate to the 'functions/' directory and install its dependencies:
+- **Frontend Framework:** [Next.js](https://nextjs.org/)
+- **Styling:** [Tailwind CSS](https://tailwindcss.com/)
+- **Authentication & Backend:** [Firebase](https://firebase.google.com/)
+- **Language:** TypeScript
 
-    cd functions
-    npm install
+## 🧪 Getting Started
 
-2. Local Development Setup
+### 1. Clone the repo
 
----
+   git clone https://github.com/SoundShift/SoundShift.git
+   cd Soundshift
 
-Ensure you have Firebase CLI installed:
+### 2. Install Dependencies
 
-    npm install -g firebase-tools
+   ---
 
-Then, log in to Firebase:
+   Before running the project, install all required dependencies:
 
-    firebase login
+      npm install
 
-This step is required to authenticate your local development environment.
+   Additionally, navigate to the 'functions/' directory and install its dependencies:
 
-5. Start the Next.js App
+      cd functions
+      npm install
 
----
+### 3. Local Development Setup
 
-In a new terminal window, navigate back to the root directory and run:
+   ---
 
-    npx next dev
+   Ensure you have Firebase CLI installed:
 
-6. Notes
+      npm install -g firebase-tools
 
----
+   Then, log in to Firebase:
 
-- If Firebase authentication issues occur, ensure you are logged in by running `firebase login`.
+      firebase login
+
+   This step is required to authenticate your local development environment.
+
+### 4. Start the Next.js App
+
+   ---
+
+   In a new terminal window, navigate back to the root directory and run:
+
+      npx next dev
+
+### 5. Notes
+
+   ---
+
+   - If Firebase authentication issues occur, ensure you are logged in by running `firebase login`.
