@@ -12,6 +12,7 @@ export default function Dashboard() {
   const { authenticated, authLoaded, logout } = useAuth();
   const {
     nowPlaying,
+    queue,
     isLiked,
     volume,
     handlePlayPause,
@@ -144,6 +145,40 @@ export default function Dashboard() {
             </p>
           )}
         </div>
+
+        {queue && queue.length > 0 && (
+          <div className="mt-8 bg-neutral-800 rounded-xl p-6 shadow-lg">
+            <h3 className="text-2xl font-bold mb-4">Up Next</h3>
+            <div className="max-h-64 bg-neutral-850 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 pr-2">
+              <ul className="space-y-4">
+                {queue.map((track, index) => (
+                  <li key={track.item?.id || index} className="flex items-center space-x-4">
+                    {track.item?.album.images[0]?.url && (
+                      <div className="w-12 h-12 relative flex-shrink-0">
+                        <Image
+                          src={track.item.album.images[0].url}
+                          alt={`${track.item.name} album art`}
+                          fill
+                          className="rounded object-cover"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium text-white truncate max-w-xs">
+                        {track.item?.name}
+                      </p>
+                      <p className="text-sm text-gray-400 truncate max-w-xs">
+                        {track.item?.artists.map((a) => a.name).join(", ")}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+
 
         <div className="mt-8 bg-neutral-800 rounded-xl p-6 shadow-lg">
           <div className="flex justify-between items-center mb-4">
