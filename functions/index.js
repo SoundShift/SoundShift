@@ -285,144 +285,209 @@ exports.decryptTokens = functions.https.onCall(
   }
 );
 
-exports.getRecommendations = functions.https.onCall(async (data) => {
-  console.log("Recommendation request received with data:", data);
-  
-  try {
-    const mood = data?.mood || "Neutral";
-    const context = data?.context || "";
-    console.log("Mood:", mood);
-    console.log("Context:", context);
-    
-    // Hardcoded recommendations in case Gemini fails
-    let fallbackRecommendations = [];
-    if (mood.toLowerCase().includes("happy")) {
-      fallbackRecommendations = [
-        { name: "Happy", artist: "Pharrell Williams" },
-        { name: "Good as Hell", artist: "Lizzo" },
-        { name: "Can't Stop the Feeling!", artist: "Justin Timberlake" },
-        { name: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars" },
-        { name: "Walking on Sunshine", artist: "Katrina & The Waves" }
-      ];
-    } else if (mood.toLowerCase().includes("sad")) {
-      fallbackRecommendations = [
-        { name: "Someone Like You", artist: "Adele" },
-        { name: "Fix You", artist: "Coldplay" },
-        { name: "Skinny Love", artist: "Bon Iver" },
-        { name: "All I Want", artist: "Kodaline" },
-        { name: "Hurt", artist: "Johnny Cash" }
-      ];
-    } else {
-      fallbackRecommendations = [
-        { name: "Circles", artist: "Post Malone" },
-        { name: "Blinding Lights", artist: "The Weeknd" },
-        { name: "Don't Start Now", artist: "Dua Lipa" },
-        { name: "Watermelon Sugar", artist: "Harry Styles" },
-        { name: "bad guy", artist: "Billie Eilish" }
-      ];
-    }
-    
-    const aiPrompt = `
-      The user is feeling ${mood}. 
-      They said: "${context}"
-      
-      Based on this data, recommend 5 songs they would enjoy right now.
-      
-      The response format MUST be JSON as follows:
-      {
-        "recommendations": [
-          { "name": "Song Title 1", "artist": "Artist Name 1" },
-          { "name": "Song Title 2", "artist": "Artist Name 2" }
-        ],
-        "explanation": "A brief explanation of why these songs were chosen"
-      }
-    `;
-    
-    console.log("Sending request to Gemini API");
-    
+exports.getRecommendations = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (req) => {
+    console.log("Recommendation request received with data:", req);
+
     try {
-      const geminiApiKey = "AIzaSyD9kFL_L2ZUYsQ60L6hn8txz990vrWP7g4";
-      if (!geminiApiKey) {
-        throw new Error("Gemini API key not found");
+      if (!req.auth || !req.auth.uid) {
+        throw new functions.https.HttpsError(
+          "unauthenticated",
+          "User must be authenticated."
+        );
       }
-      
-      const geminiResponse = await axios.post(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${geminiApiKey}`,
-        {
-          contents: [{ parts: [{ text: aiPrompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024
-          }
-        },
-        { 
-          headers: { "Content-Type": "application/json" },
-          timeout: 15000
+
+      const userId = req.auth.uid;
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "User data not found."
+        );
+      }
+
+      const userData = userDoc.data();
+      if (!userData.access_token || !userData.refresh_token) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Spotify tokens not found."
+        );
+      }
+
+      let accessToken = decrypt(userData.access_token);
+      let refreshToken = decrypt(userData.refresh_token);
+      let expiresAt = userData.expires_at;
+
+      if (Date.now() >= expiresAt) {
+        try {
+          console.log(`Refreshing access token for user: ${userId}`);
+          const clientId = process.env.SPOTIFY_CLIENT_ID;
+          const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+          const refreshResponse = await axios.post(
+            "https://accounts.spotify.com/api/token",
+            new URLSearchParams({
+              grant_type: "refresh_token",
+              refresh_token: refreshToken,
+              client_id: clientId,
+              client_secret: clientSecret,
+            }),
+            { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+          );
+
+          accessToken = refreshResponse.data.access_token;
+          expiresAt = Date.now() + refreshResponse.data.expires_in * 1000;
+
+          await db
+            .collection("users")
+            .doc(userId)
+            .update({
+              access_token: encrypt(accessToken),
+              expires_at: expiresAt,
+            });
+
+          console.log(`Access token refreshed for user: ${userId}`);
+        } catch (error) {
+          console.error(
+            "Failed to refresh Spotify token:",
+            error.response?.data || error
+          );
+          throw new functions.https.HttpsError(
+            "internal",
+            "Failed to refresh token"
+          );
         }
+      }
+
+      const recentTracksResponse = await axios.get(
+        "https://api.spotify.com/v1/me/player/recently-played?limit=50",
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      
-      console.log("Gemini API Response received");
-      
+
+      const recentTracks = recentTracksResponse.data.items.map((item) => ({
+        name: item.track.name,
+        artist: item.track.artists.map((a) => a.name).join(", "),
+      }));
+
+      const recentSet = new Set(
+        recentTracks.slice(0, 20).map((t) => `${t.name} by ${t.artist}`)
+      );
+
+      console.log("User's last 50 played songs:", recentTracks);
+
+      const { genres, mood, context = "" } = req.data;
+      console.log("Genres:", genres);
+      console.log("Mood:", mood);
+      console.log("Context:", context);
+
+      const aiPrompt = `
+The user is currently feeling '${mood}'.
+They said: "${context}"
+They enjoy the following genres: ${genres.join(", ")}.
+Here are the last 50 songs they listened to:
+${recentTracks.map((track) => `- ${track.name} by ${track.artist}`).join("\n")}
+
+Please recommend 20 fresh songs they would enjoy based on mood, genre, and past listening.
+Avoid suggesting songs that appeared in the last 20 they listened to.
+Return ONLY valid JSON in the format:
+{
+  "recommendations": [
+    { "name": "Song Title 1", "artist": "Artist Name 1" },
+    { "name": "Song Title 2", "artist": "Artist Name 2" }
+  ],
+  "explanation": "Why these songs were chosen"
+}
+`;
+
       let recommendations = [];
       let explanation = "";
-      
+
       try {
-        const aiText = geminiResponse.data.candidates[0]?.content?.parts[0]?.text || "";
-        console.log("Raw AI text response:", aiText);
-        
+        const geminiResponse = await axios.post(
+          `https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          {
+            contents: [{ parts: [{ text: aiPrompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+          },
+          {
+            headers: { "Content-Type": "application/json" },
+            timeout: 15000,
+          }
+        );
+
+        const aiText =
+          geminiResponse.data.candidates[0]?.content?.parts[0]?.text || "";
+        console.log("Raw AI response:", aiText);
+
         const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-        
         if (jsonMatch) {
           const jsonStr = jsonMatch[0];
-          console.log("Extracted JSON string:", jsonStr);
-          
-          try {
-            const parsedData = JSON.parse(jsonStr);
-            console.log("Parsed JSON data:", parsedData);
-            
-            if (Array.isArray(parsedData.recommendations)) {
-              recommendations = parsedData.recommendations;
-              explanation = parsedData.explanation || "Here are some songs that match your mood.";
-            }
-          } catch (jsonError) {
-            console.error("JSON parse error:", jsonError);
-            throw new Error("Failed to parse JSON from Gemini response");
+          const parsedData = JSON.parse(jsonStr);
+
+          if (Array.isArray(parsedData.recommendations)) {
+            recommendations = parsedData.recommendations.filter(
+              (r) => !recentSet.has(`${r.name} by ${r.artist}`)
+            );
+            explanation =
+              parsedData.explanation ||
+              "Here are some songs that match your mood.";
           }
         }
-        
+
         if (recommendations.length === 0) {
-          throw new Error("No recommendations found in Gemini response");
+          throw new Error("No valid recommendations found");
         }
-      } catch (parseError) {
-        console.error("Error parsing Gemini response:", parseError);
-        throw new Error("Failed to parse Gemini recommendations");
+      } catch (error) {
+        console.error(
+          "Gemini error or parsing failure:",
+          error.message || error
+        );
+
+        let fallbackRecommendations = [];
+        if (mood.toLowerCase().includes("happy")) {
+          fallbackRecommendations = [
+            { name: "Happy", artist: "Pharrell Williams" },
+            { name: "Good as Hell", artist: "Lizzo" },
+            { name: "Can't Stop the Feeling!", artist: "Justin Timberlake" },
+            { name: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars" },
+            { name: "Walking on Sunshine", artist: "Katrina & The Waves" },
+          ];
+        } else if (mood.toLowerCase().includes("sad")) {
+          fallbackRecommendations = [
+            { name: "Someone Like You", artist: "Adele" },
+            { name: "Fix You", artist: "Coldplay" },
+            { name: "Skinny Love", artist: "Bon Iver" },
+            { name: "All I Want", artist: "Kodaline" },
+            { name: "Hurt", artist: "Johnny Cash" },
+          ];
+        } else {
+          fallbackRecommendations = [
+            { name: "Circles", artist: "Post Malone" },
+            { name: "Blinding Lights", artist: "The Weeknd" },
+            { name: "Don't Start Now", artist: "Dua Lipa" },
+            { name: "Watermelon Sugar", artist: "Harry Styles" },
+            { name: "bad guy", artist: "Billie Eilish" },
+          ];
+        }
+
+        return {
+          tracks: fallbackRecommendations,
+          explanation: "Here are some songs that might match your mood.",
+        };
       }
-      
-      console.log("Final recommendations count:", recommendations.length);
-      console.log("Explanation:", explanation);
-      
-      return { 
-        tracks: recommendations,
-        explanation: explanation
-      };
-    } catch (geminiError) {
-      console.error("Gemini API error:", geminiError.message);
-      if (geminiError.response) {
-        console.error("Gemini API error status:", geminiError.response.status);
-        console.error("Gemini API error data:", JSON.stringify(geminiError.response.data));
-      }
-      console.log("Falling back to hardcoded recommendations");
-      
+
       return {
-        tracks: fallbackRecommendations,
-        explanation: "Here are some songs that might match your mood."
+        tracks: recommendations,
+        explanation: explanation,
       };
+    } catch (error) {
+      console.error("Unexpected error:", error.message || error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Error generating recommendations: " +
+          (error.message || "Unknown error")
+      );
     }
-  } catch (error) {
-    console.error("Error in getRecommendations:", error);
-    throw new functions.https.HttpsError(
-      "internal",
-      "Error generating recommendations: " + (error.message || "Unknown error")
-    );
   }
-});
+);
