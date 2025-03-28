@@ -5,23 +5,32 @@ import { useSpotify } from "@/providers/SpotifyProvider";
 import { useAuth } from "@/providers/AuthProvider";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import Image from "next/image";
-import { v4 as uuidv4 } from 'uuid';
 import ConversationChat from "@/components/ConversationChat";
 import ConversationInput from "@/components/ConversationInput";
+import { v4 as uuidv4 } from "uuid";
 
 interface Message {
   id: string;
   text: string;
-  sender: 'user' | 'assistant';
+  sender: "user" | "assistant";
   timestamp: Date;
 }
 
+interface RecommendationTrack {
+  name: string;
+  artist: string;
+}
+
 interface RecommendationResponse {
-  tracks: { name: string; artist: string }[];
+  tracks: RecommendationTrack[];
   explanation: string;
 }
 
-export default function ConversationalPopup({ onClose }: { onClose: () => void }) {
+export default function ConversationalPopup({
+  onClose,
+}: {
+  onClose: () => void;
+}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,15 +47,15 @@ export default function ConversationalPopup({ onClose }: { onClose: () => void }
     const initialMessage: Message = {
       id: uuidv4(),
       text: "Hi there! How are you feeling today? Tell me about your day or what you're up to.",
-      sender: 'assistant',
-      timestamp: new Date()
+      sender: "assistant",
+      timestamp: new Date(),
     };
     setMessages([initialMessage]);
   }, []);
 
   const findTrackIdByName = async (trackName: string, artistName: string) => {
     if (!spotifyToken) return null;
-    
+
     const url = `https://api.spotify.com/v1/search?q=track:${encodeURIComponent(
       trackName
     )} artist:${encodeURIComponent(artistName)}&type=track&limit=1`;
@@ -78,98 +87,108 @@ export default function ConversationalPopup({ onClose }: { onClose: () => void }
       const userMessage: Message = {
         id: uuidv4(),
         text,
-        sender: 'user',
-        timestamp: new Date()
+        sender: "user",
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, userMessage]);
+      setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
-      
+
       let mood = "Neutral";
-      if (text.toLowerCase().includes("happy") || 
-          text.toLowerCase().includes("good") || 
-          text.toLowerCase().includes("great")) {
+      if (
+        text.toLowerCase().includes("happy") ||
+        text.toLowerCase().includes("good") ||
+        text.toLowerCase().includes("great")
+      ) {
         mood = "Happy";
-      } else if (text.toLowerCase().includes("sad") || 
-                 text.toLowerCase().includes("bad") || 
-                 text.toLowerCase().includes("tired")) {
+      } else if (
+        text.toLowerCase().includes("sad") ||
+        text.toLowerCase().includes("bad") ||
+        text.toLowerCase().includes("tired")
+      ) {
         mood = "Sad";
       }
-      
+
       const analysisMessage: Message = {
         id: uuidv4(),
         text: `I see you're feeling ${mood.toLowerCase()}. Let me find some music that matches your mood...`,
-        sender: 'assistant',
-        timestamp: new Date()
+        sender: "assistant",
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, analysisMessage]);
-      
+      setMessages((prev) => [...prev, analysisMessage]);
+
       console.log("Getting recommendations...");
       setLoading(true);
-      
+
       try {
         const functions = getFunctions();
-        const getRecommendationsFunction = httpsCallable(functions, "getRecommendations");
-        
+        const getRecommendationsFunction = httpsCallable<
+          { mood: string; context: string },
+          RecommendationResponse
+        >(functions, "getRecommendations");
+
         const response = await getRecommendationsFunction({
           mood: mood,
-          context: text
+          context: text,
         });
-        
+
         console.log("Recommendation response:", response.data);
-        
+
         if (response.data.tracks && response.data.tracks.length > 0) {
           setExplanation(response.data.explanation || "");
-          
-          const trackPromises = response.data.tracks.map(track => 
-            findTrackIdByName(track.name, track.artist)
+
+          const trackPromises = response.data.tracks.map(
+            (track: RecommendationTrack) =>
+              findTrackIdByName(track.name, track.artist)
           );
-          
+
           const resolvedTracks = await Promise.all(trackPromises);
-          const validTracks = resolvedTracks.filter(track => track !== null) as {
+          const validTracks = resolvedTracks.filter(
+            (track) => track !== null
+          ) as {
             id: string;
             name: string;
             artist: string;
             albumArt: string;
           }[];
-          
+
           setRecommendedTracks(validTracks);
-          
+
           const successMessage: Message = {
             id: uuidv4(),
             text: `I found ${validTracks.length} songs that I think you'll enjoy! Check them out below.`,
-            sender: 'assistant',
-            timestamp: new Date()
+            sender: "assistant",
+            timestamp: new Date(),
           };
-          setMessages(prev => [...prev, successMessage]);
+          setMessages((prev) => [...prev, successMessage]);
         } else {
           throw new Error("No recommendations returned");
         }
       } catch (error) {
         console.error("Error getting recommendations:", error);
-        
+
         const errorMessage: Message = {
           id: uuidv4(),
           text: "I'm having trouble finding recommendations right now. Could you try again?",
-          sender: 'assistant',
-          timestamp: new Date()
+          sender: "assistant",
+          timestamp: new Date(),
         };
-        setMessages(prev => [...prev, errorMessage]);
+        setMessages((prev) => [...prev, errorMessage]);
       }
-      
+
       setLoading(false);
       setIsTyping(false);
     } catch (error) {
       console.error("Error in message handling:", error);
       setLoading(false);
       setIsTyping(false);
-      
+
       const errorMessage: Message = {
         id: uuidv4(),
         text: "Sorry, I encountered an error. Please try again later.",
-        sender: 'assistant',
-        timestamp: new Date()
+        sender: "assistant",
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     }
   };
 
@@ -188,12 +207,12 @@ export default function ConversationalPopup({ onClose }: { onClose: () => void }
 
         <div className="flex-grow overflow-auto flex flex-col">
           <ConversationChat messages={messages} isTyping={isTyping} />
-          
+
           {recommendedTracks.length > 0 && (
             <div className="p-4 border-t border-neutral-800">
               <h3 className="text-lg font-semibold mb-3">Recommended Tracks</h3>
               <p className="text-sm text-gray-400 mb-4">{explanation}</p>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto">
                 {recommendedTracks.map((track) => (
                   <div
@@ -232,7 +251,7 @@ export default function ConversationalPopup({ onClose }: { onClose: () => void }
                   </div>
                 ))}
               </div>
-              
+
               <button
                 onClick={async () => {
                   for (const track of recommendedTracks) {
@@ -258,9 +277,12 @@ export default function ConversationalPopup({ onClose }: { onClose: () => void }
             </div>
           )}
         </div>
-        
+
         <div className="p-4 border-t border-neutral-800">
-          <ConversationInput onMessageSent={handleMessageSent} isProcessing={loading} />
+          <ConversationInput
+            onMessageSent={handleMessageSent}
+            isProcessing={loading}
+          />
         </div>
       </div>
     </div>

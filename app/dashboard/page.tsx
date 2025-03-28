@@ -20,7 +20,7 @@ export default function Dashboard() {
     handleVolumeChange,
     toggleLike,
   } = useSpotify();
-
+  const [localVolume, setLocalVolume] = useState(volume);
   const [showPopup, setShowPopup] = useState<boolean>(false);
 
   useEffect(() => {
@@ -129,8 +129,10 @@ export default function Dashboard() {
                     type="range"
                     min="0"
                     max="100"
-                    value={volume}
-                    onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                    value={localVolume}
+                    onChange={(e) => setLocalVolume(Number(e.target.value))}
+                    onMouseUp={() => handleVolumeChange(localVolume)}
+                    onTouchEnd={() => handleVolumeChange(localVolume)}
                     className="w-40"
                   />
                 </div>
@@ -148,7 +150,8 @@ export default function Dashboard() {
             <h2 className="text-2xl font-bold">Your Music Assistant</h2>
           </div>
           <p className="text-gray-300 mb-6">
-            Tell me how you're feeling or what you're up to, and I'll recommend music that matches your mood.
+            Tell me how you're feeling or what you're up to, and I'll recommend
+            music that matches your mood.
           </p>
           <button
             onClick={handleOpenPopup}
