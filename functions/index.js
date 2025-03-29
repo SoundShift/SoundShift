@@ -403,7 +403,8 @@ Return ONLY valid JSON in the format:
 
       try {
         const geminiResponse = await axios.post(
-          `https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+
           {
             contents: [{ parts: [{ text: aiPrompt }] }],
             generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
