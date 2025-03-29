@@ -376,15 +376,13 @@ exports.getRecommendations = functions.https.onCall(
 
       console.log("User's last 50 played songs:", recentTracks);
 
-      const { genres, mood, context = "" } = req.data;
-      console.log("Genres:", genres);
+      const { mood, context = "" } = req.data;
       console.log("Mood:", mood);
       console.log("Context:", context);
 
       const aiPrompt = `
 The user is currently feeling '${mood}'.
 They said: "${context}"
-They enjoy the following genres: ${genres.join(", ")}.
 Here are the last 50 songs they listened to:
 ${recentTracks.map((track) => `- ${track.name} by ${track.artist}`).join("\n")}
 
