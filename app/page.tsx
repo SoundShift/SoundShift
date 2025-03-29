@@ -1,12 +1,11 @@
 "use client";
 
 import { useAuth } from "@/providers/AuthProvider";
-import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
-  const { authenticated, authLoaded, logout } = useAuth();
+  const { authenticated, authLoaded } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -21,81 +20,113 @@ export default function Home() {
     const scope = encodeURIComponent(
       "streaming user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private user-library-read user-top-read user-read-recently-played user-read-private user-read-email"
     );
-
     const authUrl = `https://accounts.spotify.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
-
     window.location.href = authUrl;
   };
 
   return (
-    <div className="min-h-screen bg-neutral-900 text-white">
-      <div className="max-w-4xl mx-auto p-8">
-        <header className="flex justify-between items-center mb-16">
-          <h1 className="text-3xl font-bold">SoundShift</h1>
-          {authenticated && (
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-full transition-colors"
-            >
-              Logout
-            </button>
-          )}
-        </header>
+    <div className="flex flex-col md:flex-row relative bg-black text-white min-h-screen overflow-hidden before:content-[''] before:fixed before:inset-0 before:bg-[url('/noise-texture.png')] before:opacity-[0.03] before:pointer-events-none">
+      <div className="absolute inset-0 bg-gradient-to-br from-black via-neutral-900 to-neutral-950 opacity-80"></div>
 
-        <main className="flex flex-col items-center justify-center">
-          <div className="text-center mb-12">
-            <h2 className="text-5xl font-bold mb-6">
-              Music that understands you
-            </h2>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-              Chat with SoundShift about your day, mood, or activities, and discover music that hits just right - like getting recommendations from a friend who really gets you.
-            </p>
+      <div className="relative flex flex-col justify-center items-start gap-10 p-6 sm:p-8 lg:p-16 xl:p-20 w-full md:w-3/5 lg:w-3/5 md:min-h-screen">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 bg-[#1DB954] rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#1DB954]/30">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-black">
+              <path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>
+            </svg>
           </div>
+          <h1 className="text-3xl font-bold tracking-tight">Sound<span className="text-[#1DB954]">Shift</span></h1>
+        </div>
 
-          <div className="bg-neutral-800 p-8 rounded-xl shadow-lg max-w-md w-full">
-            <h3 className="text-2xl font-bold mb-6 text-center">
-              Get started with SoundShift
-            </h3>
-            <p className="text-gray-300 mb-8 text-center">
-              Connect your Spotify account to start getting personalized music recommendations.
-            </p>
-            <button
-              onClick={handleLogin}
-              className="w-full py-3 bg-[#1DB954] hover:bg-[#1ed760] text-black rounded-full transition-colors text-lg font-semibold flex items-center justify-center"
+        <div className="text-left mb-6 md:mb-10 max-w-2xl w-full">
+          <div className="inline-block mb-1 px-3 py-1 bg-[#1DB954]/10 border border-[#1DB954]/20 rounded-full text-[#1DB954] text-sm font-medium">
+            AI-Powered Music Discovery
+          </div>
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold mt-4 mb-6 leading-[1.1] tracking-tight text-white">
+            Music that <span className="text-[#1DB954]">understands</span> you
+          </h2>
+          <p className="text-lg text-gray-300 leading-relaxed max-w-xl">
+            Chat with SoundShift about your day, mood, or activities, and discover music that hits just right - like getting recommendations from a friend who really gets you.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 w-full">
+          {[
+            { 
+              title: "Natural Conversation", 
+              description: "Tell us how you're feeling in natural language, just like texting a friend.", 
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#1DB954" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              )
+            },
+            { 
+              title: "Personalized Recommendations", 
+              description: "Get music suggestions perfectly matched to your current vibe and preferences.", 
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#1DB954" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"></path>
+                </svg>
+              )
+            },
+            { 
+              title: "Seamless Spotify Integration", 
+              description: "Play your recommended tracks instantly through your Spotify account.", 
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#1DB954" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                </svg>
+              )
+            },
+          ].map((feature, index) => (
+            <div
+              key={index}
+              className="bg-gradient-to-br from-neutral-800/80 to-neutral-900/80 backdrop-blur-sm border border-neutral-700/50 p-6 rounded-2xl transition-all duration-300 hover:shadow-xl hover:shadow-[#1DB954]/10 hover:border-[#1DB954]/20 hover:-translate-y-1 group flex flex-col h-full"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 496 512"
-                className="h-6 w-6 mr-2"
-                fill="currentColor"
+              <div className="bg-black/30 rounded-xl p-3 w-fit mb-4 transition-transform duration-300 group-hover:scale-105 transform-gpu group-hover:bg-[#1DB954]/20">{feature.icon}</div>
+              <h3 className="text-xl font-semibold mb-2 text-white">{feature.title}</h3>
+              <p className="text-gray-400 text-sm leading-relaxed"> 
+                {feature.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative flex justify-center items-center w-full md:w-2/5 lg:w-2/5 p-6 sm:p-8 lg:p-12 min-h-[50vh] md:min-h-screen bg-neutral-900/50">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] aspect-square bg-gradient-to-br from-[#1DB954]/10 via-purple-700/10 to-black rounded-full blur-3xl opacity-20"></div>
+        <div className="absolute top-1/4 right-1/3 w-24 h-24 bg-[#1DB954]/20 blur-3xl rounded-full animate-pulse-slow"></div>
+        <div className="absolute bottom-1/4 left-1/3 w-32 h-32 bg-purple-700/20 blur-3xl rounded-full animate-pulse-slow delay-700"></div>
+        
+        <div className="relative w-full max-w-md z-10">
+          <div className="bg-gradient-to-br from-neutral-800/90 to-neutral-900/90 backdrop-blur-xl p-8 rounded-3xl border border-neutral-700/60 w-full relative shadow-2xl">
+            <div className="absolute -inset-0.5 bg-gradient-to-br from-[#1DB954]/30 to-purple-700/30 rounded-3xl blur-md opacity-20"></div>
+            <div className="relative">
+              <h3 className="text-2xl font-bold mb-4 text-center text-white">
+                Get started with SoundShift
+              </h3>
+              <p className="text-gray-300 mb-8 text-center text-base">
+                Connect your Spotify account to start getting personalized music recommendations.
+              </p>
+              <button
+                onClick={handleLogin}
+                className="w-full py-4 px-6 bg-[#1DB954] hover:bg-[#1ed760] text-black rounded-xl transition-all duration-300 text-base font-semibold flex items-center justify-center group shadow-lg shadow-[#1DB954]/30 hover:shadow-[#1ed760]/40 transform hover:scale-[1.02]"
               >
-                <path d="M248 8C111.1 8 0 119.1 0 256s111.1 248 248 248 248-111.1 248-248S384.9 8 248 8zm100.7 364.9c-4.2 0-6.8-1.3-10.7-3.6-62.4-37.6-135-39.2-206.7-24.5-3.9 1-9 2.6-11.9 2.6-9.7 0-15.8-7.7-15.8-15.8 0-10.3 6.1-15.2 13.6-16.8 81.9-18.1 165.6-16.5 237 30.6 6.1 4.2 9.7 7.4 9.7 16.5s-7.1 15.4-15.2 15.4zm26.9-65.6c-5.2 0-8.7-2.3-12.3-4.2-62.5-37-155.7-51.9-238.6-29.4-4.8 1.3-7.4 2.6-11.9 2.6-10.7 0-19.4-8.7-19.4-19.4s5.2-17.8 15.5-20.7c27.8-7.8 56.2-13.6 97.8-13.6 64.9 0 127.6 16.1 177 45.5 8.1 4.8 11.3 11 11.3 19.7-.1 10.8-8.5 19.5-19.4 19.5zm31-76.2c-5.2 0-8.4-1.3-12.9-3.9-71.2-42.5-198.5-52.7-280.9-29.7-3.6 1-8.1 2.6-12.9 2.6-13.2 0-23.3-10.3-23.3-23.6 0-13.6 8.4-21.3 17.4-23.9 35.2-10.3 74.6-15.2 117.5-15.2 73 0 149.5 15.2 205.4 47.8 7.8 4.5 12.9 10.7 12.9 22.6 0 13.6-11 23.3-23.2 23.3z" />
-              </svg>
-              Login with Spotify
-            </button>
-          </div>
-
-          <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
-            <div className="bg-neutral-800 p-6 rounded-xl">
-              <h3 className="text-xl font-bold mb-3">Natural Conversation</h3>
-              <p className="text-gray-300">
-                Tell us how you're feeling and we'll find your next favorite song.
-              </p>
-            </div>
-            <div className="bg-neutral-800 p-6 rounded-xl">
-              <h3 className="text-xl font-bold mb-3">Personalized Recommendations</h3>
-              <p className="text-gray-300">
-                Music that fits your mood, matches your taste, and feels just right.
-              </p>
-            </div>
-            <div className="bg-neutral-800 p-6 rounded-xl">
-              <h3 className="text-xl font-bold mb-3">Seamless Spotify Integration</h3>
-              <p className="text-gray-300">
-                Play your recommended tracks instantly on any Spotify-enabled device.
-              </p>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" className="h-5 w-5 mr-3 group-hover:scale-110 transition-transform" fill="currentColor">
+                  <path d="M248 8C111.1 8 0 119.1 0 256s111.1 248 248 248 248-111.1 248-248S384.9 8 248 8z... (rest of path)" />
+                </svg>
+                Login with Spotify
+              </button>
+              
+              <div className="mt-8 text-center">
+                 <div className="flex justify-center space-x-1">
+                </div>
+              </div>
             </div>
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );
