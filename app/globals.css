@@ -5,6 +5,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --spotify-green: #1DB954;
+  --spotify-green-hover: #1ed760;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -17,24 +19,14 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
 }
 
-.keyword-container {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  letter-spacing: -0.025em;
 }
 
-.keyword-button {
-  background-color: #1DB954;
-  color: white;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.keyword-button:hover {
-  background-color: #1ed760;
-}
+.split-screen { display: flex; min-height: 100vh; overflow: hidden; }
+.left-section { flex: 1; padding: 3rem; }
+.right-section { width: 40%; padding: 3rem; }
