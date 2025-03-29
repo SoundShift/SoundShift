@@ -21,6 +21,7 @@ interface SpotifyContextType {
   player: Spotify.Player | null;
   deviceId: string | null;
   nowPlaying: NowPlaying | null;
+  queue: NowPlaying[] | null;
   volume: number;
   isLiked: boolean | null;
   handlePlayPause: () => Promise<void>;
@@ -58,6 +59,7 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
     null
   );
+  const [queue, setQueue] = useState<NowPlaying[] | null>(null);
 
   useEffect(() => {
     if (!spotifyToken) return;
@@ -175,6 +177,7 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
           if (data.item.id) {
             checkIfTrackIsLiked(data.item.id);
           }
+          fetchQueue();
         } else {
           setNowPlaying(null);
         }
@@ -204,6 +207,41 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
         console.error("Error checking if track is liked:", error);
       }
     };
+
+    const fetchQueue = async () => {
+
+      if(!spotifyToken) return;
+      try {
+        const response = await fetch(
+          `https://api.spotify.com/v1/me/player/queue`,
+          {
+            headers: {
+              Authorization: `Bearer ${spotifyToken}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch queue");
+        }
+
+        const data = await response.json();
+
+        const nextUp = data.queue.map((track: any) => ({
+          item: {
+            id: track.id,
+            name: track.name,
+            artists: track.artists,
+            album: track.album,
+            uri: track.uri,
+          },
+          isPlaying: false,
+        }));
+        setQueue(nextUp);
+      } catch (error) {
+        console.error("Error fetching queue:", error);
+      }
+    }
 
     fetchPlaybackState();
 
@@ -369,6 +407,7 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
         player,
         deviceId,
         nowPlaying,
+        queue,
         volume,
         isLiked,
         handlePlayPause,
