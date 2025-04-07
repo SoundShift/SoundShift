@@ -106,14 +106,14 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
         const currentTrack = state.track_window.current_track;
         setNowPlaying({
           item: {
-            id: currentTrack.id ?? "", // fallback to empty string if null
-            name: currentTrack.name,
-            artists: currentTrack.artists,
+            id: currentTrack?.id ?? "",
+            name: currentTrack?.name ?? "",
+            artists: currentTrack?.artists ?? [],
             album: {
-              name: currentTrack.album.name,
-              images: currentTrack.album.images,
+              name: currentTrack?.album?.name ?? "",
+              images: currentTrack?.album?.images ?? [],
             },
-            uri: currentTrack.uri,
+            uri: currentTrack?.uri ?? "",
           },
           isPlaying: !state.paused,
         });
@@ -121,8 +121,11 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
         // @ts-ignore - device is not typed in PlaybackState
         setVolume(state.device?.volume_percent ?? 50);
 
-        if (likedTracks && currentTrack.id) {
+        if (likedTracks && currentTrack?.id) {
           setIsLiked(!!likedTracks[currentTrack.id]);
+        } else {
+          // Reset liked status when no track is playing
+          setIsLiked(false);
         }
       });
 

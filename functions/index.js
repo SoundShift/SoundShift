@@ -376,19 +376,17 @@ exports.getRecommendations = functions.https.onCall(
 
       console.log("User's last 50 played songs:", recentTracks);
 
-      const { genres, mood, context = "" } = req.data;
-      console.log("Genres:", genres);
+      const { mood, context = "" } = req.data;
       console.log("Mood:", mood);
       console.log("Context:", context);
 
       const aiPrompt = `
 The user is currently feeling '${mood}'.
 They said: "${context}"
-They enjoy the following genres: ${genres.join(", ")}.
 Here are the last 50 songs they listened to:
 ${recentTracks.map((track) => `- ${track.name} by ${track.artist}`).join("\n")}
 
-Please recommend 20 fresh songs they would enjoy based on mood, genre, and past listening.
+Please recommend 20 fresh songs they would enjoy based on mood, and past listening.
 Avoid suggesting songs that appeared in the last 20 they listened to.
 Return ONLY valid JSON in the format:
 {
@@ -405,7 +403,8 @@ Return ONLY valid JSON in the format:
 
       try {
         const geminiResponse = await axios.post(
-          `https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+
           {
             contents: [{ parts: [{ text: aiPrompt }] }],
             generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
