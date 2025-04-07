@@ -24,9 +24,9 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.025em;
 }
 
-.split-screen { display: flex; min-height: 800px; overflow: hidden; }
-.left-section { flex: 1; padding: 640px; }
-.right-section { width: 40%; padding: 48px; }
+.split-screen { display: flex; min-height: 100vh; overflow: hidden; }
+.left-section { flex: 1; padding: 3rem; }
+.right-section { width: 40%; padding: 3rem; }
