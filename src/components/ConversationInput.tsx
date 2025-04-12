@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { FiSend } from 'react-icons/fi';
+import { FiSend, FiMic, FiMicOff } from 'react-icons/fi';
+
+type SpeechRecognition = any;
+type SpeechRecognitionEvent = any;
 
 interface ConversationInputProps {
   onMessageSent: (message: string) => void;
@@ -8,7 +11,9 @@ interface ConversationInputProps {
 
 export default function ConversationInput({ onMessageSent, isProcessing }: ConversationInputProps) {
   const [message, setMessage] = useState('');
+  const [isListening, setIsListening] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -16,6 +21,39 @@ export default function ConversationInput({ onMessageSent, isProcessing }: Conve
       inputRef.current.style.height = `${inputRef.current.scrollHeight}px`;
     }
   }, [message]);
+
+  useEffect(() => {
+    if (!('webkitSpeechRecognition' in window)) {
+      console.warn("Speech Recognition not supported");
+      return;
+    }
+
+    const recognition = new (window as any).webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[0][0].transcript;
+      setMessage((prev) => prev + ' ' + transcript);
+    };
+
+    recognition.onend = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      recognitionRef.current.start();
+    }
+
+    setIsListening((prev) => !prev);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +74,15 @@ export default function ConversationInput({ onMessageSent, isProcessing }: Conve
         rows={1}
         disabled={isProcessing}
       />
+      <button
+        type="button"
+        onClick={toggleListening}
+        className={`p-3 rounded-full ${
+          isListening ? 'bg-red-600 text-white' : 'bg-neutral-700 text-white hover:bg-neutral-600'
+        }`}
+      >
+        {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
+      </button>
       <button
         type="submit"
         disabled={!message.trim() || isProcessing}
