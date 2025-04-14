@@ -285,6 +285,89 @@ exports.decryptTokens = functions.https.onCall(
   }
 );
 
+exports.moodAnalysis = functions.https.onCall(
+  { enforceAppCheck: false },
+  async (req) => {
+    console.log("Analyzing: ", req);
+
+    let mood = "";
+
+    try {
+      if (!req.auth || !req.auth.uid) {
+        throw new functions.https.HttpsError(
+          "unauthenticated",
+          "User must be authenticated."
+        );
+      }
+
+      const {context = "" } = req.data;
+      console.log("Context:", context);
+
+      const aiPrompt = `
+      Describe the users mood in a single word:
+      "${context}"`;
+
+      console.log(aiPrompt);
+
+      try {
+        const geminiResponse = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+
+          {
+            contents: [{ parts: [{ text: aiPrompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+          },
+          {
+            headers: { "Content-Type": "application/json" },
+            timeout: 15000,
+          }
+        );
+
+        const aiText =
+          geminiResponse.data.candidates[0]?.content?.parts[0]?.text || "";
+        console.log("Raw AI response:", aiText);
+      } catch (error) {
+        console.error(
+          "Gemini error or parsing failure:",
+          error.message || error
+        );
+
+        let fallbackMood = "Neutral"
+
+        if (
+          context.toLowerCase().includes("happy") ||
+          context.toLowerCase().includes("good") ||
+          context.toLowerCase().includes("great")
+        ) {
+          fallbackMood = "Happy";
+        } else if (
+          context.toLowerCase().includes("sad") ||
+          context.toLowerCase().includes("bad") ||
+          context.toLowerCase().includes("tired")
+        ) {
+          fallbackMood = "Sad";
+        }
+
+        return {
+          mood: fallbackMood,
+        };
+      }
+
+      return {
+        mood: mood,
+      };
+
+    } catch (error) {
+      console.error("Unexpected error:", error.message || error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Error generating recommendations: " +
+          (error.message || "Unknown error")
+      );
+    }
+  }
+);
+
 exports.getRecommendations = functions.https.onCall(
   { enforceAppCheck: false },
   async (req) => {

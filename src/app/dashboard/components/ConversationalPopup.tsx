@@ -93,6 +93,16 @@ export default function ConversationalPopup({
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
+      const functions = getFunctions();
+      const moodAnalysisFunction = httpsCallable<
+        { context: string },
+        RecommendationResponse
+      >(functions, "moodAnalysis");
+
+      // const moodRes = await moodAnalysisFunction({
+      //   context: text,
+      // });
+
       let mood = "Neutral";
       if (
         text.toLowerCase().includes("happy") ||
