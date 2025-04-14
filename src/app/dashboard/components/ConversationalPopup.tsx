@@ -93,24 +93,21 @@ export default function ConversationalPopup({
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
-      let mood = "Neutral";
-      if (
-        text.toLowerCase().includes("happy") ||
-        text.toLowerCase().includes("good") ||
-        text.toLowerCase().includes("great")
-      ) {
-        mood = "Happy";
-      } else if (
-        text.toLowerCase().includes("sad") ||
-        text.toLowerCase().includes("bad") ||
-        text.toLowerCase().includes("tired")
-      ) {
-        mood = "Sad";
-      }
+      const functions = getFunctions();
+      const moodAnalysisFunction = httpsCallable<
+        { context: string },
+        RecommendationResponse
+      >(functions, "moodAnalysis");
+
+      const moodRes = await moodAnalysisFunction({
+        context: text,
+      });
+
+      let mood = moodRes.data.mood;
 
       const analysisMessage: Message = {
         id: uuidv4(),
-        text: `I see you're feeling ${mood.toLowerCase()}. Let me find some music that matches your mood...`,
+        text: `I see you're feeling ${mood.toLowerCase()} Let me find some music that matches your mood...`,
         sender: "assistant",
         timestamp: new Date(),
       };
