@@ -6,6 +6,14 @@ import Image from "next/image";
 import { useAuth } from "@/providers/AuthProvider";
 import { useSpotify } from "@/providers/SpotifyProvider";
 import ConversationalPopup from "@/app/dashboard/components/ConversationalPopup";
+import { v4 as uuidv4 } from "uuid";
+
+interface Message {
+  id: string;
+  text: string;
+  sender: 'user' | 'assistant';
+  timestamp: Date;
+}
 
 export default function Dashboard() {
   const router = useRouter();
@@ -23,6 +31,15 @@ export default function Dashboard() {
   } = useSpotify();
   const [localVolume, setLocalVolume] = useState(volume);
   const [showPopup, setShowPopup] = useState<boolean>(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [recommendedTracks, setRecommendedTracks] = useState<
+    { id: string; name: string; artist: string; albumArt: string }[]
+  >([]);
+  const [queuedTracks, setQueuedTracks] = useState<Set<string>>(new Set());
+  const [explanation, setExplanation] = useState<string>("");
+  const [isRecommendationsCollapsed, setIsRecommendationsCollapsed] = useState(false);
 
   useEffect(() => {
     if (authLoaded && !authenticated) {
@@ -34,6 +51,17 @@ export default function Dashboard() {
     setLocalVolume(volume);
   }, [volume]);
 
+  useEffect(() => {
+    if (showPopup && messages.length === 0) {
+      const initialMessage = {
+        id: uuidv4(),
+        text: "Hi there! How are you feeling today? Tell me about your day or what you're up to.",
+        sender: "assistant" as const,
+        timestamp: new Date(),
+      };
+      setMessages([initialMessage]);
+    }
+  }, [showPopup, messages.length]);
 
   const handleClosePopup = () => {
     setShowPopup(false);
@@ -45,6 +73,21 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handleStartNewChat = () => {
+    setMessages([{
+      id: uuidv4(),
+      text: "Hi there! How are you feeling today? Tell me about your day or what you're up to.",
+      sender: "assistant" as const,
+      timestamp: new Date(),
+    }]);
+    setIsTyping(false);
+    setLoading(false);
+    setRecommendedTracks([]);
+    setQueuedTracks(new Set());
+    setExplanation("");
+    setIsRecommendationsCollapsed(false);
   };
 
   return (
@@ -250,7 +293,26 @@ export default function Dashboard() {
          </div>
       </div>
 
-      {showPopup && <ConversationalPopup onClose={handleClosePopup} />}
+      {showPopup && (
+        <ConversationalPopup 
+          onClose={handleClosePopup}
+          onStartNewChat={handleStartNewChat}
+          messages={messages}
+          setMessages={setMessages}
+          isTyping={isTyping}
+          setIsTyping={setIsTyping}
+          loading={loading}
+          setLoading={setLoading}
+          recommendedTracks={recommendedTracks}
+          setRecommendedTracks={setRecommendedTracks}
+          queuedTracks={queuedTracks}
+          setQueuedTracks={setQueuedTracks}
+          explanation={explanation}
+          setExplanation={setExplanation}
+          isRecommendationsCollapsed={isRecommendationsCollapsed}
+          setIsRecommendationsCollapsed={setIsRecommendationsCollapsed}
+        />
+      )}
     </div>
   );
 }
