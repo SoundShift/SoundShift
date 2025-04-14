@@ -62,7 +62,7 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
   const [queue, setQueue] = useState<NowPlaying[] | null>(null);
 
   const fetchQueue = async () => {
-    if(!spotifyToken) return;
+    if (!spotifyToken) return;
     try {
       const response = await fetch(
         `https://api.spotify.com/v1/me/player/queue`,
@@ -201,8 +201,10 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
           isPlaying: !state.paused,
         });
 
-        // @ts-ignore - device is not typed in PlaybackState
-        setVolume(state.device?.volume_percent ?? 50);
+        const volumePercent = (state as any)?.device?.volume_percent;
+        if (typeof volumePercent === "number") {
+          setVolume(volumePercent);
+        }
 
         if (likedTracks && currentTrack?.id) {
           setIsLiked(!!likedTracks[currentTrack.id]);
