@@ -472,7 +472,7 @@ They said: "${context}"
 Here are the last 50 songs they listened to:
 ${recentTracks.map((track) => `- ${track.name} by ${track.artist}`).join("\n")}
 
-Please recommend 20 fresh songs they would enjoy based on mood, and past listening.
+Please recommend 20 fresh songs they would enjoy based on their mood and recent listening history.
 Avoid suggesting songs that appeared in the last 20 they listened to.
 Return ONLY valid JSON in the format:
 {
@@ -480,7 +480,7 @@ Return ONLY valid JSON in the format:
     { "name": "Song Title 1", "artist": "Artist Name 1" },
     { "name": "Song Title 2", "artist": "Artist Name 2" }
   ],
-  "explanation": "Why these songs were chosen"
+    "explanation": "Given your [mood] and recent listening history..."
 }
 `;
 
