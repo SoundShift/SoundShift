@@ -290,8 +290,6 @@ exports.moodAnalysis = functions.https.onCall(
   async (req) => {
     console.log("Analyzing: ", req);
 
-    let mood = "";
-
     try {
       if (!req.auth || !req.auth.uid) {
         throw new functions.https.HttpsError(
@@ -306,6 +304,8 @@ exports.moodAnalysis = functions.https.onCall(
       const aiPrompt = `
       Describe the users mood in a single word:
       "${context}"`;
+
+      let userMood = "";
 
       console.log(aiPrompt);
 
@@ -325,7 +325,10 @@ exports.moodAnalysis = functions.https.onCall(
 
         const aiText =
           geminiResponse.data.candidates[0]?.content?.parts[0]?.text || "";
-        console.log("Raw AI response:", aiText);
+        console.log("Raw AI mood response:", aiText);
+
+        userMood = aiText;
+
       } catch (error) {
         console.error(
           "Gemini error or parsing failure:",
@@ -354,7 +357,7 @@ exports.moodAnalysis = functions.https.onCall(
       }
 
       return {
-        mood: mood,
+        mood: userMood,
       };
 
     } catch (error) {
