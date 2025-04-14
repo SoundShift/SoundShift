@@ -279,14 +279,16 @@ export default function ConversationalPopup({
 
                   <button
                     onClick={async () => {
+                      setQueuedTracks( // Set button as "All added to queue" to prevent multiple clicks..
+                        new Set(recommendedTracks.map((track) => track.id))
+                      );
+                      
+                      // Process the queue
                       for (const track of recommendedTracks) {
                         if (!queuedTracks.has(track.id)) {
                           await addToQueue(track.id);
                         }
                       }
-                      setQueuedTracks(
-                        new Set(recommendedTracks.map((track) => track.id))
-                      );
                     }}
                     disabled={queuedTracks.size === recommendedTracks.length}
                     className={`mt-4 px-6 py-2 rounded-lg text-lg font-semibold w-full ${
