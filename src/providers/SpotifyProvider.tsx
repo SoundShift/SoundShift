@@ -61,6 +61,89 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const [queue, setQueue] = useState<NowPlaying[] | null>(null);
 
+  const fetchQueue = async () => {
+    if(!spotifyToken) return;
+    try {
+      const response = await fetch(
+        `https://api.spotify.com/v1/me/player/queue`,
+        {
+          headers: {
+            Authorization: `Bearer ${spotifyToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch queue");
+      }
+
+      const data = await response.json();
+
+      const nextUp = data.queue.map((track: any) => ({
+        item: {
+          id: track.id,
+          name: track.name,
+          artists: track.artists,
+          album: track.album,
+          uri: track.uri,
+        },
+        isPlaying: false,
+      }));
+      setQueue(nextUp);
+    } catch (error) {
+      console.error("Error fetching queue:", error);
+    }
+  };
+
+  const addToQueue = async (trackId: string) => {
+    if (!spotifyToken) return;
+
+    try {
+      // Ensure the user has an active device
+      const deviceResponse = await fetch(
+        "https://api.spotify.com/v1/me/player",
+        {
+          headers: {
+            Authorization: `Bearer ${spotifyToken}`,
+          },
+        }
+      );
+
+      const deviceData = await deviceResponse.json();
+
+      if (!deviceData.device || !deviceData.device.id) {
+        console.error(
+          "No active Spotify device found. Please play something on Spotify first."
+        );
+        return;
+      }
+
+      // Properly format track URI
+      const trackUri = `spotify:track:${trackId}`;
+      const queueUrl = `https://api.spotify.com/v1/me/player/queue?uri=${encodeURIComponent(
+        trackUri
+      )}`;
+
+      const response = await fetch(queueUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${spotifyToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Failed to add to queue:", errorData);
+      } else {
+        console.log(`Successfully added ${trackId} to queue.`);
+        // Fetch updated queue after adding track
+        await fetchQueue();
+      }
+    } catch (error) {
+      console.error("Error adding track to queue:", error);
+    }
+  };
+
   useEffect(() => {
     if (!spotifyToken) return;
 
@@ -211,41 +294,6 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
 
-    const fetchQueue = async () => {
-
-      if(!spotifyToken) return;
-      try {
-        const response = await fetch(
-          `https://api.spotify.com/v1/me/player/queue`,
-          {
-            headers: {
-              Authorization: `Bearer ${spotifyToken}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch queue");
-        }
-
-        const data = await response.json();
-
-        const nextUp = data.queue.map((track: any) => ({
-          item: {
-            id: track.id,
-            name: track.name,
-            artists: track.artists,
-            album: track.album,
-            uri: track.uri,
-          },
-          isPlaying: false,
-        }));
-        setQueue(nextUp);
-      } catch (error) {
-        console.error("Error fetching queue:", error);
-      }
-    }
-
     fetchPlaybackState();
 
     const interval = setInterval(fetchPlaybackState, 3000);
@@ -348,53 +396,6 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLiked(!isLiked);
     } catch (error) {
       console.error("Error toggling like status:", error);
-    }
-  };
-
-  const addToQueue = async (trackId: string) => {
-    if (!spotifyToken) return;
-
-    try {
-      // Ensure the user has an active device
-      const deviceResponse = await fetch(
-        "https://api.spotify.com/v1/me/player",
-        {
-          headers: {
-            Authorization: `Bearer ${spotifyToken}`,
-          },
-        }
-      );
-
-      const deviceData = await deviceResponse.json();
-
-      if (!deviceData.device || !deviceData.device.id) {
-        console.error(
-          "No active Spotify device found. Please play something on Spotify first."
-        );
-        return;
-      }
-
-      // Properly format track URI
-      const trackUri = `spotify:track:${trackId}`;
-      const queueUrl = `https://api.spotify.com/v1/me/player/queue?uri=${encodeURIComponent(
-        trackUri
-      )}`;
-
-      const response = await fetch(queueUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${spotifyToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Failed to add to queue:", errorData);
-      } else {
-        console.log(`Successfully added ${trackId} to queue.`);
-      }
-    } catch (error) {
-      console.error("Error adding track to queue:", error);
     }
   };
 
