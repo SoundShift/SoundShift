@@ -79,13 +79,13 @@ export const SpotifyProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const data = await response.json();
 
-      const nextUp = data.queue.map((track: any) => ({
+      const nextUp = data.queue.map((track: any, index: number) => ({
         item: {
           id: track.id,
           name: track.name,
           artists: track.artists,
           album: track.album,
-          uri: track.uri,
+          uri: `${track.uri}-${index}`,
         },
         isPlaying: false,
       }));

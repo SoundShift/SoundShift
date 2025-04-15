@@ -244,7 +244,7 @@ export default function Dashboard() {
               <ul className="space-y-2">
                 {queue.map((track, index) => (
                   <li
-                    key={track.item?.uri || track.item?.id || index}
+                    key={`${track.item?.uri || track.item?.id}-${index}`}
                     className="flex items-center space-x-4 p-3 hover:bg-neutral-700/30 rounded-xl transition-all duration-200 border border-transparent hover:border-neutral-700/50 group"
                   >
                     <div className="flex-shrink-0 w-6 text-center text-sm font-medium text-gray-400 group-hover:text-white">
