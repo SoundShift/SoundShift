@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense } from "react";
 import { getAuth, signInWithCustomToken } from "firebase/auth";
 import Loading from "@/components/Loading";
 import { functions } from "@/firebaseConfig/firebase";
 import { httpsCallable } from "firebase/functions";
 
-export default function CallbackPage() {
-  const router = useRouter();
+function CallbackContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const exchangeToken = httpsCallable(functions, "exchangeToken");
 
   useEffect(() => {
@@ -35,5 +36,13 @@ export default function CallbackPage() {
     <div className="flex items-center justify-center min-h-screen">
       <Loading message="Connecting to Spotify" />
     </div>
+  );
+}
+
+export default function Callback() {
+  return (
+    <Suspense fallback={null}>
+      <CallbackContent />
+    </Suspense>
   );
 }

@@ -1,5 +1,4 @@
 import Image from 'next/image';
-import { spotifyClient } from '@/src/lib/spotify';
 
 interface Recommendation {
   artist: string;

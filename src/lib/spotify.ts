@@ -1,5 +1,4 @@
-import { TokenResponse } from '@/src/types/spotify';
-import Recommendations from '@/src/components/Recommendations';
+import { TokenResponse } from '@/types/spotify';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 export class SpotifyClient {
