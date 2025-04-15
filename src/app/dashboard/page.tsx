@@ -144,6 +144,7 @@ export default function Dashboard() {
                     src={nowPlaying.item.album.images[0].url}
                     alt={`${nowPlaying.item.name} album art`}
                     fill
+                    sizes="(max-width: 768px) 100vw, 320px"
                     className="rounded-xl object-cover shadow-lg transform group-hover:scale-[1.02] transition-all duration-500"
                   />
                 </div>
@@ -254,7 +255,7 @@ export default function Dashboard() {
                     </div>
                     {track.item?.album.images[0]?.url && (
                       <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden rounded-md shadow-md group-hover:shadow-lg transition-all duration-300">
-                        <Image src={track.item.album.images[0].url} fill className="object-cover group-hover:scale-110 transition-transform duration-500" alt={track.item.name}/>
+                        <Image src={track.item.album.images[0].url} fill sizes="48px" className="object-cover group-hover:scale-110 transition-transform duration-500" alt={track.item.name}/>
                       </div>
                     )}
                     <div className="overflow-hidden flex-grow">
