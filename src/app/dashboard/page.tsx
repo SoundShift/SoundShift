@@ -91,7 +91,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white relative before:content-[''] before:fixed before:inset-0 before:bg-[url('/noise-texture.png')] before:opacity-[0.03] before:pointer-events-none">
+    <div className="min-h-screen bg-black text-white relative">
       <div className="absolute inset-0 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black opacity-80"></div>
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12">

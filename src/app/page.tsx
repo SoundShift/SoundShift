@@ -25,7 +25,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row relative bg-black text-white min-h-screen overflow-hidden before:content-[''] before:fixed before:inset-0 before:bg-[url('/noise-texture.png')] before:opacity-[0.03] before:pointer-events-none">
+    <div className="flex flex-col md:flex-row relative bg-black text-white min-h-screen overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-black via-neutral-900 to-neutral-950 opacity-80"></div>
 
       <div className="relative flex flex-col justify-center items-start gap-10 p-6 sm:p-8 lg:p-16 xl:p-20 w-full md:w-3/5 lg:w-3/5 md:min-h-screen">
